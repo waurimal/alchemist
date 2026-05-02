@@ -74,6 +74,7 @@
         const Sparkles = (p) => <Icon {...p} path='<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>' />;
         const Play = (p) => <Icon {...p} path='<polygon points="5 3 19 12 5 21 5 3"/>' />;
         const Trophy = (p) => <Icon {...p} path='<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>' />;
+        const Settings = (p) => <Icon {...p} path='<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>' />;
 
         // --- 게임 기본 데이터 및 로직 ---
         const LETTER_SCORES = {
@@ -152,9 +153,9 @@
                 return () => unsubscribe();
             }, [user, roomId, isJoining]);
 
-            const handleCreateRoom = async (mode) => {
+            const handleCreateRoom = async (mode, timeLimit = 90, isTeacher = false) => {
                 if (!user) return;
-                const displayName = `${userInfo.grade}학년 ${userInfo.classNum}반 ${userInfo.studentNum}번 ${userInfo.name}`;
+                const displayName = isTeacher ? "👨‍🏫 선생님" : `${userInfo.grade}학년 ${userInfo.classNum}반 ${userInfo.studentNum}번 ${userInfo.name}`;
                 const newRoomId = mode === 'single' ? `SINGLE_${user.uid.slice(0,6)}` : generateRoomCode();
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, newRoomId);
                 
@@ -164,10 +165,11 @@
                         hostId: user.uid,
                         status: mode === 'single' ? 'playing' : 'waiting', 
                         mode: mode,
+                        timeLimit: timeLimit,
                         letters: generateLetters(),
-                        endTime: mode === 'single' ? Date.now() + 90 * 1000 : null,
+                        endTime: mode === 'single' ? Date.now() + timeLimit * 1000 : null,
                         players: {
-                            [user.uid]: { name: displayName, team: 'red' }
+                            [user.uid]: { name: displayName, team: 'red', isTeacher: isTeacher }
                         },
                         words: {}
                     };
@@ -297,6 +299,9 @@
         // --- 하위 컴포넌트: 로비 ---
         function LobbyView({ userInfo, setUserInfo, selectedMode, setSelectedMode, onCreateRoom, onJoinRoom }) {
             const [joinCode, setJoinCode] = useState('');
+            const [isTeacherMenu, setIsTeacherMenu] = useState(false);
+            const [teacherConfig, setTeacherConfig] = useState({ mode: 'class', timeLimit: 90 });
+
             const isInfoComplete = userInfo.grade && userInfo.classNum && userInfo.studentNum && userInfo.name.trim();
 
             const handleInfoChange = (e) => {
@@ -304,8 +309,53 @@
                 setUserInfo(prev => ({ ...prev, [name]: value }));
             };
 
+            if (isTeacherMenu) {
+                return (
+                    <div className="flex flex-col items-center justify-start pt-4 sm:pt-8 h-full w-full max-w-2xl mx-auto px-4 overflow-y-auto custom-scrollbar pb-4">
+                        <div className="bg-white w-full p-6 sm:p-8 rounded-3xl border border-indigo-200 shadow-xl relative animate-in zoom-in-95">
+                            <button onClick={() => setIsTeacherMenu(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700">✕ 닫기</button>
+                            <div className="flex items-center mb-6 border-b border-slate-100 pb-4">
+                                <Settings className="w-8 h-8 text-indigo-600 mr-3" />
+                                <h2 className="text-2xl font-black text-slate-800">선생님 전용 설정</h2>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">대결 모드 선택</label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <button onClick={() => setTeacherConfig({...teacherConfig, mode: 'class'})} className={`py-3 rounded-xl font-bold text-sm transition-all border-2 ${teacherConfig.mode === 'class' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>학급 전체 개인전</button>
+                                        <button onClick={() => setTeacherConfig({...teacherConfig, mode: 'team'})} className={`py-3 rounded-xl font-bold text-sm transition-all border-2 ${teacherConfig.mode === 'team' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>팀 대결 (Red/Blue)</button>
+                                        <button onClick={() => setTeacherConfig({...teacherConfig, mode: '1v1'})} className={`py-3 rounded-xl font-bold text-sm transition-all border-2 ${teacherConfig.mode === '1v1' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>1:1 진검승부</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">게임 제한 시간</label>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        {[60, 90, 120, 180].map(time => (
+                                            <button key={time} onClick={() => setTeacherConfig({...teacherConfig, timeLimit: time})} className={`py-2 rounded-xl font-bold text-sm transition-all border-2 ${teacherConfig.timeLimit === time ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{time}초</button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 mt-4 border-t border-slate-100">
+                                    <button onClick={() => onCreateRoom(teacherConfig.mode, teacherConfig.timeLimit, true)} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white rounded-xl font-bold shadow-lg flex justify-center items-center text-lg transition-transform hover:-translate-y-0.5">
+                                        <Sparkles className="w-5 h-5 mr-2" /> 이 설정으로 방 생성하기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
             return (
                 <div className="flex flex-col items-center justify-start pt-2 sm:pt-4 h-full w-full max-w-4xl mx-auto px-2 overflow-y-auto custom-scrollbar pb-4 space-y-3 sm:space-y-4">
+                    <div className="w-full flex justify-end px-2">
+                        <button onClick={() => setIsTeacherMenu(true)} className="flex items-center text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                            <Settings className="w-3.5 h-3.5 mr-1" /> 교사 설정
+                        </button>
+                    </div>
                     <div className="text-center space-y-1 sm:space-y-2 animate-in slide-in-from-top-4 fade-in duration-700 flex-shrink-0">
                         <div className="inline-flex p-2 sm:p-3 rounded-full bg-white border-2 border-indigo-100 mb-1 shadow-[0_4px_15px_rgba(99,102,241,0.15)]">
                             <Flame className="w-8 h-8 sm:w-10 sm:h-10 text-fuchsia-500 animate-pulse" />
@@ -418,13 +468,15 @@
             const isHost = roomData.hostId === user.uid;
             const players = Object.entries(roomData.players || {});
             const isTeamMode = roomData.mode === 'team';
+            const isClassMode = roomData.mode === 'class';
+            const timeLimit = roomData.timeLimit || 90;
 
             const handleStartGame = async () => {
                 if (!isHost) return;
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
                 await updateDoc(roomRef, {
                     status: 'playing',
-                    endTime: Date.now() + 90 * 1000, 
+                    endTime: Date.now() + timeLimit * 1000, 
                     letters: generateLetters(), 
                     words: {}
                 });
@@ -445,7 +497,7 @@
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 text-center flex flex-col sm:flex-row items-center justify-between shadow-sm flex-shrink-0">
                         <div className="text-left mb-3 sm:mb-0">
                             <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2 inline-block border border-indigo-100">
-                                {roomData.mode === '1v1' ? '1:1 대결 모드' : '학급 팀 대결 모드'}
+                                {roomData.mode === '1v1' ? '1:1 대결 모드' : isClassMode ? '학급 전체 개인전' : '학급 팀 대결 모드'} ({timeLimit}초)
                             </span>
                             <p className="text-slate-500 text-xs font-medium">친구에게 아래 코드를 알려주세요</p>
                         </div>
@@ -482,11 +534,11 @@
                             </div>
                         ) : (
                             <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center shadow-sm h-full flex flex-col">
-                                <h3 className="text-lg font-bold mb-4 text-slate-800 flex-shrink-0">참여한 연금술사 ({players.length}/2)</h3>
+                                <h3 className="text-lg font-bold mb-4 text-slate-800 flex-shrink-0">참여한 연금술사 ({roomData.mode === '1v1' ? `${players.length}/2` : `${players.length}명`})</h3>
                                 <div className="flex flex-wrap justify-center gap-3 flex-1 content-start overflow-y-auto custom-scrollbar">
                                     {players.map(([uid, p]) => (
-                                        <div key={uid} className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 shadow-sm flex items-center">
-                                            {p.name} {uid === user.uid && <span className="text-indigo-600 text-xs ml-2 bg-indigo-100 px-1.5 py-0.5 rounded-md">나</span>}
+                                        <div key={uid} className={`px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold shadow-sm flex items-center ${p.isTeacher ? 'text-indigo-600 border-indigo-200 bg-indigo-50' : 'text-slate-800'}`}>
+                                            {p.name} {uid === user.uid && <span className="text-indigo-600 text-xs ml-2 bg-indigo-200 px-1.5 py-0.5 rounded-md">나</span>}
                                         </div>
                                     ))}
                                 </div>
@@ -782,7 +834,7 @@
                     <div className="text-center space-y-2 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
                         <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-amber-500 mx-auto animate-bounce" />
                         <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-amber-500 via-fuchsia-600 to-indigo-600">
-                            {mode === 'single' ? '연성 완료! 내 기록' : mode === '1v1' ? '대결 종료! 승자는?' : '팀 대결 종료!'}
+                            {mode === 'single' ? '연성 완료! 내 기록' : mode === '1v1' ? '대결 종료! 승자는?' : mode === 'class' ? '학급 개인전 종료! 순위표' : '팀 대결 종료!'}
                         </h2>
                     </div>
 
