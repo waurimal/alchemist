@@ -195,6 +195,14 @@
                         return;
                     }
                     const data = docSnap.data();
+
+                    // ✅ 같은 브라우저(동일인) 중복 접속 방지 및 테스트 안내 추가
+                    if (data.players[user.uid]) {
+                        setErrorMsg("이미 이 방에 접속해 있습니다. (혼자 테스트하려면 '새 시크릿 창'을 이용하세요!)");
+                        setIsJoining(false);
+                        return;
+                    }
+
                     if (data.status !== 'waiting') {
                         setErrorMsg("이미 게임이 시작되었거나 종료되었습니다.");
                         setIsJoining(false);
@@ -539,11 +547,12 @@
         function GamePlayView({ roomData, user, timeLeft }) {
             const [selectedIndices, setSelectedIndices] = useState([]);
             const [localError, setLocalError] = useState('');
+            const [isChecking, setIsChecking] = useState(false);
             const letters = roomData.letters || [];
 
             const handleKeyDown = useCallback((e) => {
                 if (e.key === 'Enter') {
-                    handleSubmit();
+                    if (!isChecking) handleSubmit();
                 } else if (e.key === 'Backspace') {
                     setSelectedIndices(prev => prev.slice(0, -1));
                 } else if (/^[a-zA-Z]$/.test(e.key)) {
@@ -553,7 +562,7 @@
                         setSelectedIndices(prev => [...prev, availableIndex]);
                     }
                 }
-            }, [selectedIndices, letters]);
+            }, [selectedIndices, letters, isChecking]);
 
             useEffect(() => {
                 window.addEventListener('keydown', handleKeyDown);
@@ -569,6 +578,7 @@
             }, [roomData.words, user.uid]);
 
             const handleSubmit = async () => {
+                if (isChecking) return;
                 if (selectedIndices.length < 2) {
                     setLocalError("2글자 이상 입력하세요!");
                     setTimeout(()=>setLocalError(''), 1500);
@@ -582,15 +592,33 @@
                     return;
                 }
 
-                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
+                setIsChecking(true);
+                setLocalError("사전 검색 중... 🔍");
+
                 try {
+                    // 외부 영어 사전 API (Free Dictionary API)를 통해 실제 단어인지 검증
+                    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
+                    
+                    if (!res.ok) {
+                        setLocalError("사전에 없는 단어입니다! ❌");
+                        setTimeout(()=>setLocalError(''), 2000);
+                        setIsChecking(false);
+                        return;
+                    }
+
+                    // 검증 통과 시 데이터베이스에 저장
+                    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
                     await updateDoc(roomRef, {
                         [`words.${cleanWord}`]: arrayUnion(user.uid)
                     });
                     setSelectedIndices([]);
                     setLocalError('');
                 } catch (err) {
-                    setLocalError("오류 발생!");
+                    console.error("검증 중 오류:", err);
+                    setLocalError("검색 중 오류가 발생했습니다!");
+                    setTimeout(()=>setLocalError(''), 1500);
+                } finally {
+                    setIsChecking(false);
                 }
             };
 
@@ -637,11 +665,11 @@
                             </div>
 
                             <div className="flex gap-2 w-full max-w-sm flex-shrink-0">
-                                <button onClick={() => setSelectedIndices(prev => prev.slice(0, -1))} disabled={selectedIndices.length === 0}
+                                <button onClick={() => setSelectedIndices(prev => prev.slice(0, -1))} disabled={selectedIndices.length === 0 || isChecking}
                                     className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-50 text-slate-700 rounded-lg font-bold shadow-sm transition-colors text-sm">지우기</button>
-                                <button onClick={handleSubmit} disabled={selectedIndices.length < 2}
+                                <button onClick={handleSubmit} disabled={selectedIndices.length < 2 || isChecking}
                                     className="flex-[2] py-2.5 bg-amber-400 hover:bg-amber-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 text-slate-900 rounded-lg font-bold shadow-[0_3px_0_rgb(217,119,6)] hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none disabled:shadow-none border border-amber-500 transition-all flex justify-center items-center text-sm">
-                                        <Wand2 className="w-4 h-4 mr-2" /> 연성 (Enter)
+                                        <Wand2 className="w-4 h-4 mr-2" /> {isChecking ? '검색 중...' : '연성 (Enter)'}
                                     </button>
                             </div>
                         </div>
