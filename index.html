@@ -1122,6 +1122,161 @@
             );
         }
 
+        // 🚀 명예의 전당 컴포넌트 (모든 기록 집계)
+        function HallOfFameView({ onBack, db, appId }) {
+            const [loading, setLoading] = useState(true);
+            const [leaderboard, setLeaderboard] = useState([]);
+            const [teamBattles, setTeamBattles] = useState([]);
+            const [filterGrade, setFilterGrade] = useState('');
+            const [filterClass, setFilterClass] = useState('');
+            const [activeTab, setActiveTab] = useState('ranking');
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    setLoading(true);
+                    try {
+                        const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
+                        const allRooms = snapshot.docs.map(d => d.data()).filter(r => r.status === 'finished');
+
+                        const scoresByName = {};
+                        const tBattles = [];
+
+                        allRooms.forEach(room => {
+                            let roomRedScore = 0;
+                            let roomBlueScore = 0;
+                            const wordsObj = room.words || {};
+
+                            Object.entries(wordsObj).forEach(([word, finders]) => {
+                                if (finders.length === 0) return;
+                                let baseScore = getLengthBonus(word.length);
+                                for (let char of word) baseScore += (LETTER_SCORES[char] || 0);
+                                const isExclusive = room.mode !== 'single' && finders.length === 1;
+                                const finalScore = isExclusive ? (baseScore * 2 + 5) : baseScore;
+
+                                finders.forEach(uid => {
+                                    const p = room.players[uid];
+                                    if (p && !p.isTeacher) { // 선생님 점수는 순위표에서 제외
+                                        if (!scoresByName[p.name]) scoresByName[p.name] = { name: p.name, score: 0, grade: '', classNum: '' };
+                                        scoresByName[p.name].score += finalScore;
+
+                                        const gMatch = p.name.match(/(\d+)학년/);
+                                        const cMatch = p.name.match(/(\d+)반/);
+                                        if (gMatch) scoresByName[p.name].grade = gMatch[1];
+                                        if (cMatch) scoresByName[p.name].classNum = cMatch[1];
+
+                                        if (room.mode === 'team') {
+                                            if (p.team === 'red') roomRedScore += finalScore;
+                                            if (p.team === 'blue') roomBlueScore += finalScore;
+                                        }
+                                    }
+                                });
+                            });
+
+                            if (room.mode === 'team') {
+                                tBattles.push({
+                                    roomId: room.roomId,
+                                    hostName: room.players[room.hostId]?.name || '알수없음',
+                                    redScore: roomRedScore,
+                                    blueScore: roomBlueScore,
+                                    date: room.endTime || Date.now()
+                                });
+                            }
+                        });
+
+                        setLeaderboard(Object.values(scoresByName).sort((a, b) => b.score - a.score));
+                        setTeamBattles(tBattles.sort((a, b) => b.date - a.date));
+                    } catch (err) {
+                        console.error("데이터 로드 실패", err);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchData();
+            }, [db, appId]);
+
+            const filteredLeaderboard = leaderboard.filter(p => {
+                if (filterGrade && p.grade !== filterGrade) return false;
+                if (filterClass && p.classNum !== filterClass) return false;
+                return true;
+            });
+
+            return (
+                <div className="flex flex-col items-center justify-start pt-4 h-full w-full max-w-3xl mx-auto px-4 overflow-y-auto custom-scrollbar pb-4 animate-in fade-in">
+                    <div className="w-full flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+                        <h2 className="text-2xl font-black text-slate-800 flex items-center">
+                            <Trophy className="w-6 h-6 mr-2 text-amber-500" /> 명예의 전당
+                        </h2>
+                        <button onClick={onBack} className="text-sm font-bold text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
+                            ✕ 돌아가기
+                        </button>
+                    </div>
+
+                    <div className="flex w-full mb-4 bg-slate-100 p-1 rounded-xl flex-shrink-0">
+                        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'ranking' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>개인 누적 랭킹</button>
+                        <button onClick={() => setActiveTab('team')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'team' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>팀 대결 결과</button>
+                    </div>
+
+                    {loading ? (
+                        <div className="py-20 text-slate-500 font-bold animate-pulse">기록을 불러오는 중...</div>
+                    ) : activeTab === 'ranking' ? (
+                        <div className="w-full space-y-4">
+                            <div className="flex space-x-2 mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                <input type="number" placeholder="학년 필터" value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="w-24 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
+                                <input type="number" placeholder="반 필터" value={filterClass} onChange={e => setFilterClass(e.target.value)} className="w-24 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
+                                <button onClick={() => { setFilterGrade(''); setFilterClass(''); }} className="ml-auto px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">조건 초기화</button>
+                            </div>
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+                                {filteredLeaderboard.length === 0 ? (
+                                    <div className="p-8 text-center text-slate-500">기록이 없습니다.</div>
+                                ) : (
+                                    filteredLeaderboard.map((p, idx) => (
+                                        <div key={idx} className={`flex items-center justify-between p-4 border-b border-slate-100 last:border-0 ${idx < 3 ? 'bg-amber-50/30' : ''}`}>
+                                            <div className="flex items-center">
+                                                <span className={`w-8 font-black text-center ${idx < 3 ? 'text-amber-500 text-lg' : 'text-slate-400'}`}>{idx + 1}</span>
+                                                <span className="font-bold text-slate-700 ml-2">{p.name}</span>
+                                            </div>
+                                            <div className="font-black text-slate-800">{p.score} <span className="text-xs font-normal text-slate-500">점</span></div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="w-full space-y-4">
+                            {teamBattles.length === 0 ? (
+                                <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">팀 대결 기록이 없습니다.</div>
+                            ) : (
+                                teamBattles.map((battle, idx) => (
+                                    <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                        <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
+                                            <span className="text-xs font-bold text-slate-400">{new Date(battle.date).toLocaleString()}</span>
+                                            <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md">방장: {battle.hostName}</span>
+                                        </div>
+                                        <div className="flex justify-center items-center gap-6">
+                                            <div className="text-center">
+                                                <h4 className="text-sm font-bold text-red-500 mb-1">레드 팀</h4>
+                                                <p className={`text-2xl font-black ${battle.redScore >= battle.blueScore ? 'text-slate-800' : 'text-slate-400'}`}>{battle.redScore}</p>
+                                            </div>
+                                            <div className="text-xl font-black text-slate-300">VS</div>
+                                            <div className="text-center">
+                                                <h4 className="text-sm font-bold text-blue-500 mb-1">블루 팀</h4>
+                                                <p className={`text-2xl font-black ${battle.blueScore >= battle.redScore ? 'text-slate-800' : 'text-slate-400'}`}>{battle.blueScore}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 text-center">
+                                            <span className="text-sm font-black bg-slate-100 px-4 py-1.5 rounded-full text-slate-700">
+                                                {battle.redScore === battle.blueScore ? '무승부!' : battle.redScore > battle.blueScore ? '🏆 레드 팀 승리!' : '👑 블루 팀 승리!'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         // React 앱 렌더링
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<WordAlchemistApp />);
