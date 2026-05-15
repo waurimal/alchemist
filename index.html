@@ -692,30 +692,64 @@
                     <div className="text-center bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
                         <h2 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-fuchsia-600">{roomData.mode === 'single' ? '내 기록' : roomData.mode === '1v1' ? '대결 종료!' : roomData.mode === 'class' ? '순위표' : '팀 대결 종료!'}</h2>
                     </div>
-                    <div className="flex flex-col md:flex-row gap-3 flex-shrink-0">
-                        {roomData.mode === 'team' && (
-                            <div className="flex-1 flex justify-center items-center gap-3">
-                                <div className={`p-3 rounded-2xl border-2 flex flex-col items-center w-24 ${teamScores.red >= teamScores.blue ? 'bg-white border-red-400 shadow-md' : 'bg-slate-50 border-slate-200'}`}><h3 className="text-xs font-bold text-red-600 mb-1">레드</h3><p className="text-2xl font-black text-slate-800">{teamScores.red}</p></div>
-                                <div className="text-sm font-black text-slate-300">VS</div>
-                                <div className={`p-3 rounded-2xl border-2 flex flex-col items-center w-24 ${teamScores.blue >= teamScores.red ? 'bg-white border-blue-400 shadow-md' : 'bg-slate-50 border-slate-200'}`}><h3 className="text-xs font-bold text-blue-600 mb-1">블루</h3><p className="text-2xl font-black text-slate-800">{teamScores.blue}</p></div>
-                            </div>
-                        )}
-                        <div className="flex-1 bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col min-h-[150px] max-h-[200px]">
-                            <h3 className="text-sm font-black text-slate-800 flex items-center justify-center mb-2"><Trophy className="w-4 h-4 mr-1 text-amber-500" /> 순위표</h3>
-                            <div className="space-y-1.5 overflow-y-auto custom-scrollbar flex-1 pr-1">
-                                {ranking.map((player, idx) => (
-                                    <div key={idx} className={`flex justify-between items-center p-2 rounded-xl border ${idx===0?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200'} ${player.uid===user.uid?'ring-1 ring-fuchsia-400 bg-fuchsia-50/30':''}`}>
-                                        <div className="flex items-center">
-                                            <span className={`w-5 font-black text-xs text-center ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span>
-                                            {roomData.mode === 'team' && <div className={`w-2 h-2 rounded-full mx-1 ${player.team==='red'?'bg-red-500':'bg-blue-500'}`} />}
-                                            <span className={`font-bold text-[11px] sm:text-xs ${player.uid===user.uid?'text-indigo-900':'text-slate-700'}`}>{player.name}</span>
+                    
+                    {roomData.mode === 'team' ? (
+                        <div className="flex w-full gap-2 md:gap-3 flex-shrink-0 h-48 sm:h-56">
+                            {/* 레드 팀 상세 결과 */}
+                            <div className={`flex-1 flex flex-col p-2 sm:p-3 rounded-2xl border-2 shadow-sm ${teamScores.red >= teamScores.blue ? 'bg-red-50/80 border-red-400' : 'bg-white border-red-100'}`}>
+                                <div className="text-center border-b border-red-100 pb-1 mb-2 flex-shrink-0">
+                                    <h3 className="text-xs sm:text-sm font-bold text-red-600 mb-0.5">레드 팀</h3>
+                                    <p className="text-2xl sm:text-3xl font-black text-slate-800">{teamScores.red}</p>
+                                </div>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
+                                    {ranking.filter(p => p.team === 'red').map((player, idx) => (
+                                        <div key={idx} className={`flex justify-between items-center p-1.5 rounded-lg border ${player.uid === user.uid ? 'bg-red-100 border-red-300 ring-1 ring-red-400' : 'bg-white border-red-100'}`}>
+                                            <span className={`font-bold text-[10px] sm:text-[11px] truncate mr-1 ${player.uid === user.uid ? 'text-red-900' : 'text-slate-700'}`}>{player.name}</span>
+                                            <span className="font-black text-xs sm:text-sm text-red-600">{player.score}</span>
                                         </div>
-                                        <div className={`font-black text-sm ${idx===0?'text-amber-600':'text-slate-700'}`}>{player.score}</div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col justify-center items-center flex-shrink-0">
+                                <span className="text-xs sm:text-sm font-black text-slate-300">VS</span>
+                            </div>
+                            
+                            {/* 블루 팀 상세 결과 */}
+                            <div className={`flex-1 flex flex-col p-2 sm:p-3 rounded-2xl border-2 shadow-sm ${teamScores.blue >= teamScores.red ? 'bg-blue-50/80 border-blue-400' : 'bg-white border-blue-100'}`}>
+                                <div className="text-center border-b border-blue-100 pb-1 mb-2 flex-shrink-0">
+                                    <h3 className="text-xs sm:text-sm font-bold text-blue-600 mb-0.5">블루 팀</h3>
+                                    <p className="text-2xl sm:text-3xl font-black text-slate-800">{teamScores.blue}</p>
+                                </div>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
+                                    {ranking.filter(p => p.team === 'blue').map((player, idx) => (
+                                        <div key={idx} className={`flex justify-between items-center p-1.5 rounded-lg border ${player.uid === user.uid ? 'bg-blue-100 border-blue-300 ring-1 ring-blue-400' : 'bg-white border-blue-100'}`}>
+                                            <span className={`font-bold text-[10px] sm:text-[11px] truncate mr-1 ${player.uid === user.uid ? 'text-blue-900' : 'text-slate-700'}`}>{player.name}</span>
+                                            <span className="font-black text-xs sm:text-sm text-blue-600">{player.score}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="flex flex-col md:flex-row gap-3 flex-shrink-0">
+                            <div className="flex-1 bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col min-h-[150px] max-h-[200px]">
+                                <h3 className="text-sm font-black text-slate-800 flex items-center justify-center mb-2"><Trophy className="w-4 h-4 mr-1 text-amber-500" /> 순위표</h3>
+                                <div className="space-y-1.5 overflow-y-auto custom-scrollbar flex-1 pr-1">
+                                    {ranking.map((player, idx) => (
+                                        <div key={idx} className={`flex justify-between items-center p-2 rounded-xl border ${idx===0?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200'} ${player.uid===user.uid?'ring-1 ring-fuchsia-400 bg-fuchsia-50/30':''}`}>
+                                            <div className="flex items-center">
+                                                <span className={`w-5 font-black text-xs text-center ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span>
+                                                <span className={`font-bold text-[11px] sm:text-xs ${player.uid===user.uid?'text-indigo-900':'text-slate-700'}`}>{player.name}</span>
+                                            </div>
+                                            <div className={`font-black text-sm ${idx===0?'text-amber-600':'text-slate-700'}`}>{player.score}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {roomData.mode !== 'single' && (
                         <div className="bg-white rounded-2xl p-3 border border-indigo-100 flex-1 min-h-[120px] relative">
                             <div className="absolute top-0 right-0 bg-indigo-50 px-2 py-0.5 rounded-bl-xl text-[9px] font-bold text-indigo-700">전체 단어</div>
@@ -754,6 +788,17 @@
 
                         allRooms.forEach(room => {
                             let roomRed = 0, roomBlue = 0;
+                            let currentRoomPlayers = {};
+                            
+                            // 방 안의 플레이어 초기화 (교사 제외)
+                            if (room.mode === 'team') {
+                                Object.entries(room.players || {}).forEach(([uid, p]) => {
+                                    if (!p.isTeacher) {
+                                        currentRoomPlayers[uid] = { name: p.name, team: p.team, score: 0 };
+                                    }
+                                });
+                            }
+
                             Object.entries(room.words || {}).forEach(([word, finders]) => {
                                 if (finders.length === 0) return;
                                 let bScore = getLengthBonus(word.length) + word.split('').reduce((a,c)=>a+(LETTER_SCORES[c]||0),0);
@@ -763,13 +808,31 @@
                                 finders.forEach(uid => {
                                     const p = room.players[uid];
                                     if (p && !p.isTeacher) {
+                                        // 1. 개인 누적 랭킹 업데이트
                                         if (!scoresByName[p.name]) scoresByName[p.name] = { name: p.name, score: 0 };
                                         scoresByName[p.name].score += fScore;
-                                        if (room.mode === 'team') { p.team === 'red' ? roomRed += fScore : roomBlue += fScore; }
+                                        
+                                        // 2. 팀 대결 점수 및 개인별 획득 점수 업데이트
+                                        if (room.mode === 'team') { 
+                                            p.team === 'red' ? roomRed += fScore : roomBlue += fScore; 
+                                            if (currentRoomPlayers[uid]) currentRoomPlayers[uid].score += fScore;
+                                        }
                                     }
                                 });
                             });
-                            if (room.mode === 'team') tBattles.push({ hostName: room.players[room.hostId]?.name||'알수없음', redScore: roomRed, blueScore: roomBlue, date: room.endTime||Date.now() });
+
+                            if (room.mode === 'team') {
+                                const redPlayers = Object.values(currentRoomPlayers).filter(p => p.team === 'red').sort((a,b)=>b.score-a.score);
+                                const bluePlayers = Object.values(currentRoomPlayers).filter(p => p.team === 'blue').sort((a,b)=>b.score-a.score);
+                                tBattles.push({ 
+                                    hostName: room.players[room.hostId]?.name||'알수없음', 
+                                    redScore: roomRed, 
+                                    blueScore: roomBlue, 
+                                    redPlayers,
+                                    bluePlayers,
+                                    date: room.endTime||Date.now() 
+                                });
+                            }
                         });
                         setLeaderboard(Object.values(scoresByName).sort((a, b) => b.score - a.score));
                         setTeamBattles(tBattles.sort((a, b) => b.date - a.date));
@@ -782,14 +845,14 @@
                 <div className="flex flex-col h-full w-full max-w-3xl mx-auto px-2 pb-2">
                     <div className="flex justify-between items-center mb-4 flex-shrink-0">
                         <h2 className="text-xl font-black flex items-center text-slate-800"><Trophy className="w-5 h-5 mr-1 text-amber-500" /> 명예의 전당</h2>
-                        <button onClick={onBack} className="text-xs bg-white border px-3 py-1.5 rounded-full font-bold shadow-sm">✕ 닫기</button>
+                        <button onClick={onBack} className="text-xs bg-white border px-3 py-1.5 rounded-full font-bold shadow-sm hover:bg-slate-50 transition-colors">✕ 닫기</button>
                     </div>
                     <div className="flex w-full mb-3 bg-slate-100 p-1 rounded-lg flex-shrink-0">
-                        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-1.5 rounded-md text-xs font-bold ${activeTab==='ranking'?'bg-white text-indigo-600 shadow-sm':'text-slate-500'}`}>개인 누적 랭킹</button>
-                        <button onClick={() => setActiveTab('team')} className={`flex-1 py-1.5 rounded-md text-xs font-bold ${activeTab==='team'?'bg-white text-indigo-600 shadow-sm':'text-slate-500'}`}>팀 대결 결과</button>
+                        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab==='ranking'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>개인 누적 랭킹</button>
+                        <button onClick={() => setActiveTab('team')} className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab==='team'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>팀 대결 결과</button>
                     </div>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-white rounded-2xl border shadow-sm p-3">
-                        {loading ? <div className="text-center text-xs text-slate-400 mt-10">불러오는 중...</div> : 
+                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
+                        {loading ? <div className="text-center text-xs text-slate-400 mt-10 animate-pulse">마법진 기록을 불러오는 중...</div> : 
                             activeTab === 'ranking' ? (
                                 leaderboard.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> :
                                 leaderboard.map((p, idx) => (
@@ -801,12 +864,48 @@
                             ) : (
                                 teamBattles.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">대결 기록이 없습니다.</div> :
                                 teamBattles.map((b, idx) => (
-                                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3">
-                                        <div className="text-[10px] text-slate-400 mb-2">{new Date(b.date).toLocaleString()} (방장: {b.hostName})</div>
-                                        <div className="flex justify-around items-center text-center">
-                                            <div><div className="text-[10px] font-bold text-red-500">레드 팀</div><div className="text-lg font-black">{b.redScore}</div></div>
-                                            <div className="text-xs font-black text-slate-300">VS</div>
-                                            <div><div className="text-[10px] font-bold text-blue-500">블루 팀</div><div className="text-lg font-black">{b.blueScore}</div></div>
+                                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm">
+                                        <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center">
+                                            <span>{new Date(b.date).toLocaleString()}</span>
+                                            <span className="font-bold">방장: {b.hostName}</span>
+                                        </div>
+                                        <div className="flex justify-between items-stretch gap-2 mt-2">
+                                            {/* 레드 팀 박스 */}
+                                            <div className="flex-1 bg-white border border-red-100 rounded-lg p-2 flex flex-col">
+                                                <div className="text-center mb-1 border-b border-red-50 pb-1">
+                                                    <div className="text-[10px] font-bold text-red-500 mb-0.5">레드 팀</div>
+                                                    <div className="text-base font-black text-slate-800">{b.redScore}</div>
+                                                </div>
+                                                <div className="flex-1 space-y-1 mt-1 max-h-24 overflow-y-auto custom-scrollbar pr-1">
+                                                    {b.redPlayers.map((p, i) => (
+                                                        <div key={i} className="flex justify-between items-center text-[10px] bg-red-50/50 p-1 rounded">
+                                                            <span className="text-slate-600 truncate font-medium mr-1">{p.name.split(' ').slice(-2).join(' ')}</span>
+                                                            <span className="font-bold text-red-500">{p.score}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* VS 마크 */}
+                                            <div className="flex flex-col justify-center items-center px-1">
+                                                <span className="text-[10px] font-black text-slate-300">VS</span>
+                                            </div>
+
+                                            {/* 블루 팀 박스 */}
+                                            <div className="flex-1 bg-white border border-blue-100 rounded-lg p-2 flex flex-col">
+                                                <div className="text-center mb-1 border-b border-blue-50 pb-1">
+                                                    <div className="text-[10px] font-bold text-blue-500 mb-0.5">블루 팀</div>
+                                                    <div className="text-base font-black text-slate-800">{b.blueScore}</div>
+                                                </div>
+                                                <div className="flex-1 space-y-1 mt-1 max-h-24 overflow-y-auto custom-scrollbar pr-1">
+                                                    {b.bluePlayers.map((p, i) => (
+                                                        <div key={i} className="flex justify-between items-center text-[10px] bg-blue-50/50 p-1 rounded">
+                                                            <span className="text-slate-600 truncate font-medium mr-1">{p.name.split(' ').slice(-2).join(' ')}</span>
+                                                            <span className="font-bold text-blue-500">{p.score}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))
