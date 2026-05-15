@@ -104,6 +104,37 @@
 
         const generateRoomCode = () => Math.floor(1000 + Math.random() * 9000).toString();
 
+        // 🚀 금기어(욕설, 성인용 단어 등) 필터링 목록
+        const PROFANITY_LIST = [
+            "시발", "씨발", "병신", "새끼", "지랄", "존나", "섹스", "느금", "애미", "애비", "개새",
+            "FUCK", "SHIT", "BITCH", "CUNT", "DICK", "ASS", "SEX", "PORN", "SLUT"
+        ];
+        
+        const containsProfanity = (text) => {
+            const upperText = text.toUpperCase();
+            return PROFANITY_LIST.some(badWord => upperText.includes(badWord));
+        };
+
+        // 🚀 초경량 로컬 사전 (빠른 검증용 기본 단어들 - 약 3만 개 중 극히 일부 샘플링)
+        const COMMON_WORDS_DB = new Set([
+            "THE", "BE", "TO", "OF", "AND", "A", "IN", "THAT", "HAVE", "I", "IT", "FOR", "NOT", "ON", "WITH", "HE", "AS", "YOU", "DO", "AT",
+            "THIS", "BUT", "HIS", "BY", "FROM", "THEY", "WE", "SAY", "HER", "SHE", "OR", "AN", "WILL", "MY", "ONE", "ALL", "WOULD", "THERE",
+            "THEIR", "WHAT", "SO", "UP", "OUT", "IF", "ABOUT", "WHO", "GET", "WHICH", "GO", "ME", "WHEN", "MAKE", "CAN", "LIKE", "TIME", "NO",
+            "JUST", "HIM", "KNOW", "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "GOOD", "SOME", "COULD", "THEM", "SEE", "OTHER", "THAN", "THEN",
+            "NOW", "LOOK", "ONLY", "COME", "ITS", "OVER", "THINK", "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", "WELL",
+            "WAY", "EVEN", "NEW", "WANT", "BECAUSE", "ANY", "THESE", "GIVE", "DAY", "MOST", "US", "NET", "APPLE", "BANANA", "CAT", "DOG", "CAR",
+            "RED", "BLUE", "GREEN", "TREE", "BOOK", "WATER", "FIRE", "EARTH", "AIR", "SUN", "MOON", "STAR", "BOY", "GIRL", "MAN", "WOMAN",
+            "HOUSE", "SCHOOL", "FRIEND", "LOVE", "HAPPY", "SAD", "RUN", "WALK", "JUMP", "SWIM", "FLY", "EAT", "DRINK", "SLEEP", "WAKE",
+            "PLAY", "STUDY", "READ", "WRITE", "TALK", "LISTEN", "HEAR", "SEE", "WATCH", "FEEL", "TOUCH", "TASTE", "SMELL", "BIG", "SMALL",
+            "LONG", "SHORT", "HIGH", "LOW", "FAST", "SLOW", "HOT", "COLD", "WARM", "COOL", "OLD", "YOUNG", "NEW", "GOOD", "BAD", "RIGHT",
+            "WRONG", "TRUE", "FALSE", "YES", "NO", "MAYBE", "ALWAYS", "NEVER", "SOMETIMES", "OFTEN", "RARELY", "HERE", "THERE", "EVERYWHERE",
+            "NOWHERE", "SOMEWHERE", "ANYWHERE", "TODAY", "TOMORROW", "YESTERDAY", "NOW", "LATER", "SOON", "EARLY", "LATE", "MORNING",
+            "AFTERNOON", "EVENING", "NIGHT", "DAY", "WEEK", "MONTH", "YEAR", "CENTURY", "MILLENNIUM", "ONE", "TWO", "THREE", "FOUR", "FIVE",
+            "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "ONCE", "TWICE", "AGAIN", "MORE", "LESS",
+            "MUCH", "MANY", "FEW", "LITTLE", "SOME", "ANY", "ALL", "NONE", "BOTH", "EITHER", "NEITHER", "EACH", "EVERY", "OTHER", "ANOTHER",
+            "SUCH", "SAME", "DIFFERENT", "OWN", "VERY", "QUITE", "RATHER", "TOO", "ENOUGH", "ALMOST", "NEARLY", "REALLY", "TRULY", "EXACTLY"
+        ]);
+
         // --- 메인 컴포넌트 ---
         function WordAlchemistApp() {
             const [user, setUser] = useState(null);
@@ -155,6 +186,13 @@
 
             const handleCreateRoom = async (mode, timeLimit = 90, isTeacher = false) => {
                 if (!user) return;
+
+                // 🚀 이름 금기어 검사
+                if (!isTeacher && containsProfanity(userInfo.name)) {
+                    setErrorMsg("이름에 사용할 수 없는 단어(금기어)가 포함되어 있습니다.");
+                    return;
+                }
+
                 const displayName = isTeacher ? "👨‍🏫 선생님" : `${userInfo.grade}학년 ${userInfo.classNum}반 ${userInfo.studentNum}번 ${userInfo.name}`;
                 const newRoomId = mode === 'single' ? `SINGLE_${user.uid.slice(0,6)}` : generateRoomCode();
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, newRoomId);
@@ -185,6 +223,12 @@
             const handleJoinRoom = async (codeToJoin) => {
                 if (!codeToJoin || codeToJoin.length !== 4) return setErrorMsg("올바른 4자리 방 코드를 입력하세요.");
                 if (!user) return;
+
+                // 🚀 이름 금기어 검사
+                if (containsProfanity(userInfo.name)) {
+                    setErrorMsg("이름에 사용할 수 없는 단어(금기어)가 포함되어 있습니다.");
+                    return;
+                }
 
                 setIsJoining(true);
                 const displayName = `${userInfo.grade}학년 ${userInfo.classNum}반 ${userInfo.studentNum}번 ${userInfo.name}`;
@@ -301,6 +345,10 @@
             const [joinCode, setJoinCode] = useState('');
             const [isTeacherMenu, setIsTeacherMenu] = useState(false);
             const [teacherConfig, setTeacherConfig] = useState({ mode: 'class', timeLimit: 90 });
+            const [pwdInput, setPwdInput] = useState(''); // 비밀번호 입력 상태
+            const [isPwdChecked, setIsPwdChecked] = useState(false); // 비밀번호 확인 상태
+
+            const TEACHER_PWD = "1234"; // 교사 설정 비밀번호
 
             const isInfoComplete = userInfo.grade && userInfo.classNum && userInfo.studentNum && userInfo.name.trim();
 
@@ -309,7 +357,49 @@
                 setUserInfo(prev => ({ ...prev, [name]: value }));
             };
 
+            const handleTeacherMenuOpen = () => {
+                setIsTeacherMenu(true);
+                setIsPwdChecked(false);
+                setPwdInput('');
+            };
+
             if (isTeacherMenu) {
+                if (!isPwdChecked) {
+                    return (
+                        <div className="flex flex-col items-center justify-center pt-10 h-full w-full max-w-sm mx-auto px-4">
+                            <div className="bg-white w-full p-8 rounded-3xl border border-indigo-200 shadow-xl relative animate-in zoom-in-95 text-center">
+                                <button onClick={() => setIsTeacherMenu(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700">✕</button>
+                                <Settings className="w-10 h-10 text-indigo-600 mx-auto mb-4" />
+                                <h2 className="text-xl font-black text-slate-800 mb-2">교사 인증</h2>
+                                <p className="text-xs text-slate-500 mb-6">설정에 접근하려면 비밀번호를 입력하세요.</p>
+                                
+                                <input 
+                                    type="password" 
+                                    value={pwdInput} 
+                                    onChange={(e) => setPwdInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if(e.key === 'Enter') {
+                                            if(pwdInput === TEACHER_PWD) setIsPwdChecked(true);
+                                            else { alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }
+                                        }
+                                    }}
+                                    placeholder="비밀번호" 
+                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 mb-4 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                                />
+                                <button 
+                                    onClick={() => {
+                                        if(pwdInput === TEACHER_PWD) setIsPwdChecked(true);
+                                        else { alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }
+                                    }} 
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-md"
+                                >
+                                    확인
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+
                 return (
                     <div className="flex flex-col items-center justify-start pt-4 sm:pt-8 h-full w-full max-w-2xl mx-auto px-4 overflow-y-auto custom-scrollbar pb-4">
                         <div className="bg-white w-full p-6 sm:p-8 rounded-3xl border border-indigo-200 shadow-xl relative animate-in zoom-in-95">
@@ -366,7 +456,7 @@
             return (
                 <div className="flex flex-col items-center justify-start pt-2 sm:pt-4 h-full w-full max-w-4xl mx-auto px-2 overflow-y-auto custom-scrollbar pb-4 space-y-3 sm:space-y-4">
                     <div className="w-full flex justify-end px-2">
-                        <button onClick={() => setIsTeacherMenu(true)} className="flex items-center text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                        <button onClick={handleTeacherMenuOpen} className="flex items-center text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
                             <Settings className="w-3.5 h-3.5 mr-1" /> 교사 설정
                         </button>
                     </div>
@@ -388,11 +478,17 @@
                         <div className="grid grid-cols-4 gap-3 mt-2">
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">학년</label>
-                                <input type="number" name="grade" value={userInfo.grade} onChange={handleInfoChange} placeholder="1" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner" />
+                                <select name="grade" value={userInfo.grade} onChange={handleInfoChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner cursor-pointer">
+                                    <option value="">선택</option>
+                                    {[1, 2, 3, 4, 5, 6].map(g => <option key={g} value={g}>{g}학년</option>)}
+                                </select>
                             </div>
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">반</label>
-                                <input type="number" name="classNum" value={userInfo.classNum} onChange={handleInfoChange} placeholder="3" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner" />
+                                <select name="classNum" value={userInfo.classNum} onChange={handleInfoChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner cursor-pointer">
+                                    <option value="">선택</option>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map(c => <option key={c} value={c}>{c}반</option>)}
+                                </select>
                             </div>
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">번호</label>
@@ -657,6 +753,15 @@
                     return;
                 }
                 const cleanWord = selectedIndices.map(idx => letters[idx]).join('');
+                
+                // 🚀 단어 연성 금기어 검사
+                if (containsProfanity(cleanWord)) {
+                    setLocalError("금지된 단어(욕설 등)는 연성할 수 없습니다! 🚫");
+                    setSelectedIndices([]);
+                    setTimeout(()=>setLocalError(''), 2000);
+                    return;
+                }
+
                 if (mySubmittedWords.includes(cleanWord)) {
                     setLocalError("이미 연성한 단어입니다!");
                     setSelectedIndices([]);
@@ -665,20 +770,42 @@
                 }
 
                 setIsChecking(true);
-                setLocalError("사전 검색 중... 🔍");
+                
+                let isValidWord = false;
 
-                try {
-                    // 외부 영어 사전 API (Free Dictionary API)를 통해 실제 단어인지 검증
-                    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
-                    
-                    if (!res.ok) {
-                        setLocalError("사전에 없는 단어입니다! ❌");
-                        setTimeout(()=>setLocalError(''), 2000);
+                // 1단계 검증: 로컬 사전(COMMON_WORDS_DB) 먼저 확인 (매우 빠름)
+                if (COMMON_WORDS_DB.has(cleanWord)) {
+                    isValidWord = true;
+                } else {
+                    // 2단계 검증: 로컬에 없으면 외부 API 호출
+                    setLocalError("사전 검색 중... 🔍");
+                    try {
+                        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
+                        if (res.ok) {
+                            isValidWord = true;
+                            // 찾은 단어를 로컬 캐시에 추가해서 다음번엔 더 빠르게
+                            COMMON_WORDS_DB.add(cleanWord); 
+                        }
+                    } catch (err) {
+                        console.error("API 검증 중 오류:", err);
+                        // API가 실패하거나 타임아웃 나면 일단 게임 진행을 위해 통과시켜줄 수도 있으나,
+                        // 여기서는 엄격하게 처리함 (원하면 무조건 통과되게 바꿀 수 있음)
+                        setLocalError("검색 서버 오류! ⚠️");
+                        setTimeout(()=>setLocalError(''), 1500);
                         setIsChecking(false);
                         return;
                     }
+                }
 
-                    // 검증 통과 시 데이터베이스에 저장
+                if (!isValidWord) {
+                    setLocalError("사전에 없는 단어입니다! ❌");
+                    setTimeout(()=>setLocalError(''), 2000);
+                    setIsChecking(false);
+                    return;
+                }
+
+                // 검증 통과 시 데이터베이스에 저장
+                try {
                     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
                     await updateDoc(roomRef, {
                         [`words.${cleanWord}`]: arrayUnion(user.uid)
@@ -686,9 +813,7 @@
                     setSelectedIndices([]);
                     setLocalError('');
                 } catch (err) {
-                    console.error("검증 중 오류:", err);
-                    setLocalError("검색 중 오류가 발생했습니다!");
-                    setTimeout(()=>setLocalError(''), 1500);
+                    setLocalError("저장 오류!");
                 } finally {
                     setIsChecking(false);
                 }
