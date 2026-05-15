@@ -31,7 +31,7 @@
         // Firebase 모듈 가져오기 (CDN)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const { useState, useEffect, useMemo, useCallback } = React;
 
@@ -57,7 +57,7 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'word-alchemist-local';
         const ROOMS_COLLECTION = 'word_alchemist_rooms';
 
-        // --- SVG 아이콘 컴포넌트 (Lucide 대체) ---
+        // --- SVG 아이콘 컴포넌트 ---
         const Icon = ({ path, className, style }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} dangerouslySetInnerHTML={{ __html: path }} />
         );
@@ -76,15 +76,10 @@
         const Trophy = (p) => <Icon {...p} path='<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>' />;
         const Settings = (p) => <Icon {...p} path='<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>' />;
 
-        // --- 게임 기본 데이터 및 로직 ---
-        const LETTER_SCORES = {
-            A:1, E:1, I:1, O:1, U:1, L:1, N:1, S:1, T:1, R:1,
-            D:2, G:2,
-            B:3, C:3, M:3, P:3,
-            F:4, H:4, V:4, W:4, Y:4,
-            K:5, J:8, X:8, Q:10, Z:10
-        };
-
+        // --- 게임 로직 ---
+        const LETTER_SCORES = { A:1, E:1, I:1, O:1, U:1, L:1, N:1, S:1, T:1, R:1, D:2, G:2, B:3, C:3, M:3, P:3, F:4, H:4, V:4, W:4, Y:4, K:5, J:8, X:8, Q:10, Z:10 };
+        const PROFANITY_LIST = ["시발", "씨발", "병신", "새끼", "지랄", "존나", "섹스", "느금", "애미", "애비", "개새", "FUCK", "SHIT", "BITCH", "CUNT", "DICK", "ASS", "SEX", "PORN", "SLUT"];
+        
         const getLengthBonus = (length) => {
             if (length <= 3) return 0;
             if (length === 4) return 2;
@@ -101,39 +96,9 @@
             for(let i=0; i<10; i++) letters.push(consonants[Math.floor(Math.random() * consonants.length)]);
             return letters.sort(() => Math.random() - 0.5);
         };
-
         const generateRoomCode = () => Math.floor(1000 + Math.random() * 9000).toString();
-
-        // 🚀 금기어(욕설, 성인용 단어 등) 필터링 목록
-        const PROFANITY_LIST = [
-            "시발", "씨발", "병신", "새끼", "지랄", "존나", "섹스", "느금", "애미", "애비", "개새",
-            "FUCK", "SHIT", "BITCH", "CUNT", "DICK", "ASS", "SEX", "PORN", "SLUT"
-        ];
-        
-        const containsProfanity = (text) => {
-            const upperText = text.toUpperCase();
-            return PROFANITY_LIST.some(badWord => upperText.includes(badWord));
-        };
-
-        // 🚀 초경량 로컬 사전 (빠른 검증용 기본 단어들 - 약 3만 개 중 극히 일부 샘플링)
-        const COMMON_WORDS_DB = new Set([
-            "THE", "BE", "TO", "OF", "AND", "A", "IN", "THAT", "HAVE", "I", "IT", "FOR", "NOT", "ON", "WITH", "HE", "AS", "YOU", "DO", "AT",
-            "THIS", "BUT", "HIS", "BY", "FROM", "THEY", "WE", "SAY", "HER", "SHE", "OR", "AN", "WILL", "MY", "ONE", "ALL", "WOULD", "THERE",
-            "THEIR", "WHAT", "SO", "UP", "OUT", "IF", "ABOUT", "WHO", "GET", "WHICH", "GO", "ME", "WHEN", "MAKE", "CAN", "LIKE", "TIME", "NO",
-            "JUST", "HIM", "KNOW", "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "GOOD", "SOME", "COULD", "THEM", "SEE", "OTHER", "THAN", "THEN",
-            "NOW", "LOOK", "ONLY", "COME", "ITS", "OVER", "THINK", "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", "WELL",
-            "WAY", "EVEN", "NEW", "WANT", "BECAUSE", "ANY", "THESE", "GIVE", "DAY", "MOST", "US", "NET", "APPLE", "BANANA", "CAT", "DOG", "CAR",
-            "RED", "BLUE", "GREEN", "TREE", "BOOK", "WATER", "FIRE", "EARTH", "AIR", "SUN", "MOON", "STAR", "BOY", "GIRL", "MAN", "WOMAN",
-            "HOUSE", "SCHOOL", "FRIEND", "LOVE", "HAPPY", "SAD", "RUN", "WALK", "JUMP", "SWIM", "FLY", "EAT", "DRINK", "SLEEP", "WAKE",
-            "PLAY", "STUDY", "READ", "WRITE", "TALK", "LISTEN", "HEAR", "SEE", "WATCH", "FEEL", "TOUCH", "TASTE", "SMELL", "BIG", "SMALL",
-            "LONG", "SHORT", "HIGH", "LOW", "FAST", "SLOW", "HOT", "COLD", "WARM", "COOL", "OLD", "YOUNG", "NEW", "GOOD", "BAD", "RIGHT",
-            "WRONG", "TRUE", "FALSE", "YES", "NO", "MAYBE", "ALWAYS", "NEVER", "SOMETIMES", "OFTEN", "RARELY", "HERE", "THERE", "EVERYWHERE",
-            "NOWHERE", "SOMEWHERE", "ANYWHERE", "TODAY", "TOMORROW", "YESTERDAY", "NOW", "LATER", "SOON", "EARLY", "LATE", "MORNING",
-            "AFTERNOON", "EVENING", "NIGHT", "DAY", "WEEK", "MONTH", "YEAR", "CENTURY", "MILLENNIUM", "ONE", "TWO", "THREE", "FOUR", "FIVE",
-            "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "ONCE", "TWICE", "AGAIN", "MORE", "LESS",
-            "MUCH", "MANY", "FEW", "LITTLE", "SOME", "ANY", "ALL", "NONE", "BOTH", "EITHER", "NEITHER", "EACH", "EVERY", "OTHER", "ANOTHER",
-            "SUCH", "SAME", "DIFFERENT", "OWN", "VERY", "QUITE", "RATHER", "TOO", "ENOUGH", "ALMOST", "NEARLY", "REALLY", "TRULY", "EXACTLY"
-        ]);
+        const containsProfanity = (text) => PROFANITY_LIST.some(badWord => text.toUpperCase().includes(badWord));
+        const COMMON_WORDS_DB = new Set(["THE", "BE", "TO", "OF", "AND", "A", "IN", "THAT", "HAVE", "I", "IT", "FOR", "NOT", "ON", "WITH", "HE", "AS", "YOU", "DO", "AT", "THIS", "BUT", "HIS", "BY", "FROM", "THEY", "WE", "SAY", "HER", "SHE", "OR", "AN", "WILL", "MY", "ONE", "ALL", "WOULD", "THERE", "THEIR", "WHAT", "SO", "UP", "OUT", "IF", "ABOUT", "WHO", "GET", "WHICH", "GO", "ME", "WHEN", "MAKE", "CAN", "LIKE", "TIME", "NO", "JUST", "HIM", "KNOW", "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "GOOD", "SOME", "COULD", "THEM", "SEE", "OTHER", "THAN", "THEN", "NOW", "LOOK", "ONLY", "COME", "ITS", "OVER", "THINK", "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", "WELL", "WAY", "EVEN", "NEW", "WANT", "BECAUSE", "ANY", "THESE", "GIVE", "DAY", "MOST", "US", "NET", "APPLE", "BANANA", "CAT", "DOG", "CAR", "RED", "BLUE", "GREEN", "TREE", "BOOK", "WATER", "FIRE", "EARTH", "AIR", "SUN", "MOON", "STAR", "BOY", "GIRL", "MAN", "WOMAN", "HOUSE", "SCHOOL", "FRIEND", "LOVE", "HAPPY", "SAD", "RUN", "WALK", "JUMP", "SWIM", "FLY", "EAT", "DRINK", "SLEEP", "WAKE"]);
 
         // --- 메인 컴포넌트 ---
         function WordAlchemistApp() {
@@ -142,6 +107,7 @@
             const [roomData, setRoomData] = useState(null);
             const [errorMsg, setErrorMsg] = useState('');
             const [isJoining, setIsJoining] = useState(false);
+            const [showHallOfFame, setShowHallOfFame] = useState(false);
 
             const [userInfo, setUserInfo] = useState({ grade: '', classNum: '', studentNum: '', name: '' });
             const [selectedMode, setSelectedMode] = useState(null); 
@@ -155,7 +121,6 @@
                             await signInAnonymously(auth);
                         }
                     } catch (err) {
-                        console.error("Auth Error:", err);
                         setErrorMsg("인증에 실패했습니다.");
                     }
                 };
@@ -166,7 +131,6 @@
 
             useEffect(() => {
                 if (!user || !roomId || isJoining) return;
-
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomId);
                 const unsubscribe = onSnapshot(roomRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -176,11 +140,7 @@
                         setRoomId('');
                         setRoomData(null);
                     }
-                }, (error) => {
-                    console.error("Listen Error:", error);
-                    setErrorMsg("데이터를 불러오는데 문제가 발생했습니다.");
-                });
-
+                }, () => setErrorMsg("데이터를 불러오는데 문제가 발생했습니다."));
                 return () => unsubscribe();
             }, [user, roomId, isJoining]);
 
@@ -199,60 +159,33 @@
                         timeLimit: timeLimit,
                         letters: generateLetters(),
                         endTime: mode === 'single' ? Date.now() + timeLimit * 1000 : null,
-                        players: {
-                            [user.uid]: { name: displayName, team: 'red', isTeacher: isTeacher }
-                        },
-                        words: {},
-                        meanings: {} // 🚀 단어 뜻을 저장할 객체 추가
+                        players: { [user.uid]: { name: displayName, team: 'red', isTeacher: isTeacher } },
+                        words: {}, meanings: {}
                     };
                     await setDoc(roomRef, initialData);
                     setRoomId(newRoomId);
                     setErrorMsg('');
                 } catch (err) {
                     setErrorMsg("방 생성에 실패했습니다.");
-                    console.error(err);
                 }
             };
 
             const handleJoinRoom = async (codeToJoin) => {
                 if (!codeToJoin || codeToJoin.length !== 4) return setErrorMsg("올바른 4자리 방 코드를 입력하세요.");
                 if (!user) return;
-
-                // 🚀 이름 금기어 검사
-                if (containsProfanity(userInfo.name)) {
-                    setErrorMsg("이름에 사용할 수 없는 단어(금기어)가 포함되어 있습니다.");
-                    return;
-                }
+                if (containsProfanity(userInfo.name)) return setErrorMsg("이름에 사용할 수 없는 단어가 포함되어 있습니다.");
 
                 setIsJoining(true);
                 const displayName = `${userInfo.grade}학년 ${userInfo.classNum}반 ${userInfo.studentNum}번 ${userInfo.name}`;
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, codeToJoin);
                 try {
                     const docSnap = await getDoc(roomRef);
-                    if (!docSnap.exists()) {
-                        setErrorMsg("존재하지 않는 방입니다.");
-                        setIsJoining(false);
-                        return;
-                    }
+                    if (!docSnap.exists()) { setErrorMsg("존재하지 않는 방입니다."); setIsJoining(false); return; }
                     const data = docSnap.data();
 
-                    // ✅ 같은 브라우저(동일인) 중복 접속 방지 및 테스트 안내 추가
-                    if (data.players[user.uid]) {
-                        setErrorMsg("이미 이 방에 접속해 있습니다. (혼자 테스트하려면 '새 시크릿 창'을 이용하세요!)");
-                        setIsJoining(false);
-                        return;
-                    }
-
-                    if (data.status !== 'waiting') {
-                        setErrorMsg("이미 게임이 시작되었거나 종료되었습니다.");
-                        setIsJoining(false);
-                        return;
-                    }
-                    if (data.mode === '1v1' && Object.keys(data.players).length >= 2) {
-                        setErrorMsg("1:1 대결 방은 이미 꽉 찼습니다.");
-                        setIsJoining(false);
-                        return;
-                    }
+                    if (data.players[user.uid]) { setErrorMsg("이미 이 방에 접속해 있습니다. (혼자 테스트하려면 '새 시크릿 창' 이용)"); setIsJoining(false); return; }
+                    if (data.status !== 'waiting') { setErrorMsg("이미 게임이 시작되었거나 종료되었습니다."); setIsJoining(false); return; }
+                    if (data.mode === '1v1' && Object.keys(data.players).length >= 2) { setErrorMsg("1:1 대결 방은 이미 꽉 찼습니다."); setIsJoining(false); return; }
 
                     let assignedTeam = 'blue';
                     if (data.mode === 'team') {
@@ -261,10 +194,7 @@
                         assignedTeam = redCount > blueCount ? 'blue' : 'red';
                     }
 
-                    await updateDoc(roomRef, {
-                        [`players.${user.uid}`]: { name: displayName, team: assignedTeam }
-                    });
-
+                    await updateDoc(roomRef, { [`players.${user.uid}`]: { name: displayName, team: assignedTeam } });
                     setRoomId(codeToJoin);
                     setErrorMsg('');
                 } catch (err) {
@@ -285,47 +215,51 @@
 
             return (
                 <div className="h-screen overflow-hidden flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-fuchsia-200 selection:text-fuchsia-900">
-                    <header className="bg-white/80 border-b border-slate-200 py-2 px-4 shadow-sm backdrop-blur-md flex-shrink-0">
+                    {/* 상단 헤더 영역 */}
+                    <header className="bg-white/80 border-b border-slate-200 py-2 px-4 shadow-sm backdrop-blur-md flex-shrink-0 z-20">
                         <div className="max-w-5xl mx-auto flex justify-between items-center">
-                            <div className="flex items-center space-x-2 text-fuchsia-600">
+                            <div className="flex items-center space-x-2 text-fuchsia-600" onClick={() => {setRoomId(''); setShowHallOfFame(false);}} style={{cursor:'pointer'}}>
                                 <Flame className="w-5 h-5" />
                                 <h1 className="text-lg font-black tracking-wider">단어 연금술사</h1>
                             </div>
-                            {userInfo.name && (
-                                <div className="text-xs text-slate-500 font-medium">
-                                    <span className="font-bold text-indigo-600">{userInfo.name}</span> 연금술사
-                                </div>
-                            )}
+                            <div className="flex items-center space-x-3">
+                                {/* 명예의 전당 버튼 (헤더에 항상 표시) */}
+                                <button onClick={() => {setRoomId(''); setShowHallOfFame(true);}} className="flex items-center bg-amber-50 text-amber-600 border border-amber-200 px-3 py-1 rounded-full text-xs font-bold hover:bg-amber-100 transition-colors shadow-sm">
+                                    <Trophy className="w-3.5 h-3.5 mr-1" /> 명예의 전당
+                                </button>
+                                {userInfo.name && !showHallOfFame && !roomData && (
+                                    <div className="text-xs text-slate-500 font-medium hidden sm:block">
+                                        <span className="font-bold text-indigo-600">{userInfo.name}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </header>
 
-                    <main className="flex-1 overflow-hidden w-full max-w-5xl mx-auto p-2 md:p-3 flex flex-col">
+                    <main className="flex-1 overflow-hidden w-full max-w-5xl mx-auto p-2 md:p-3 flex flex-col relative">
                         {errorMsg && (
-                            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-600 animate-in slide-in-from-top-2 shadow-sm flex-shrink-0 text-sm">
+                            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-600 animate-in slide-in-from-top-2 shadow-sm flex-shrink-0 text-sm z-30">
                                 <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
                                 <span className="font-medium">{errorMsg}</span>
                                 <button onClick={() => setErrorMsg('')} className="ml-auto text-red-400 hover:text-red-600">✕</button>
                             </div>
                         )}
 
-                        {!roomData && (
+                        {showHallOfFame ? (
+                            <HallOfFameView onBack={() => setShowHallOfFame(false)} db={db} appId={appId} />
+                        ) : !roomData ? (
                             <LobbyView 
                                 userInfo={userInfo} setUserInfo={setUserInfo}
                                 selectedMode={selectedMode} setSelectedMode={setSelectedMode}
-                                onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} 
+                                onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} db={db} appId={appId}
                             />
-                        )}
-
-                        {roomData && roomData.status === 'waiting' && (
-                            <WaitingRoomView roomData={roomData} user={user} />
-                        )}
-
-                        {roomData && (roomData.status === 'playing' || roomData.status === 'finished') && (
-                            <GameManager roomData={roomData} user={user} />
+                        ) : roomData.status === 'waiting' ? (
+                            <WaitingRoomView roomData={roomData} user={user} appId={appId} />
+                        ) : (
+                            <GameManager roomData={roomData} user={user} appId={appId} />
                         )}
                     </main>
                     
-                    {/* 제작자 및 저작권 정보 푸터 추가 */}
                     <footer className="py-2 flex-shrink-0 text-center bg-transparent z-10">
                         <p className="text-[10px] text-slate-400 font-medium">만든이: 곽현석(이의초등학교)</p>
                         <p className="text-[10px] text-slate-400">Copyright © 2026 Eui Elementary School. All Rights Reserved.</p>
@@ -334,78 +268,77 @@
             );
         }
 
-        // --- 하위 컴포넌트: 로비 ---
-        function LobbyView({ userInfo, setUserInfo, selectedMode, setSelectedMode, onCreateRoom, onJoinRoom }) {
+        // --- 하위 컴포넌트: 로비 (교사 설정 포함) ---
+        function LobbyView({ userInfo, setUserInfo, selectedMode, setSelectedMode, onCreateRoom, onJoinRoom, db, appId }) {
             const [joinCode, setJoinCode] = useState('');
             const [isTeacherMenu, setIsTeacherMenu] = useState(false);
             const [teacherConfig, setTeacherConfig] = useState({ mode: 'class', timeLimit: 90 });
-            const [pwdInput, setPwdInput] = useState(''); // 비밀번호 입력 상태
-            const [isPwdChecked, setIsPwdChecked] = useState(false); // 비밀번호 확인 상태
-            const [newPwdInput, setNewPwdInput] = useState(''); // 🚀 새 비밀번호 입력 상태
+            
+            const [pwdInput, setPwdInput] = useState('');
+            const [isPwdChecked, setIsPwdChecked] = useState(false);
+            const [newPwdInput, setNewPwdInput] = useState('');
+            const [delGrade, setDelGrade] = useState('');
+            const [delClass, setDelClass] = useState('');
 
-            // 🚀 브라우저 로컬 스토리지에서 비밀번호 가져오기 (기본값: 1234)
             const getTeacherPwd = () => localStorage.getItem('word_alchemist_teacher_pwd') || "1234";
 
             const isInfoComplete = userInfo.grade && userInfo.classNum && userInfo.studentNum && userInfo.name.trim();
+            const handleInfoChange = (e) => setUserInfo(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-            const handleInfoChange = (e) => {
-                const { name, value } = e.target;
-                setUserInfo(prev => ({ ...prev, [name]: value }));
-            };
+            const handleTeacherMenuOpen = () => { setIsTeacherMenu(true); setIsPwdChecked(false); setPwdInput(''); };
 
-            const handleTeacherMenuOpen = () => {
-                setIsTeacherMenu(true);
-                setIsPwdChecked(false);
-                setPwdInput('');
+            // 특정 학급 데이터 삭제 함수
+            const handleDeleteClassData = async () => {
+                if(!delGrade || !delClass) return alert('학년과 반을 모두 입력해주세요.');
+                if(!confirm(`정말 ${delGrade}학년 ${delClass}반의 모든 대결 및 순위 기록을 삭제하시겠습니까? (복구 불가)`)) return;
+                
+                try {
+                    const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
+                    let count = 0;
+                    snapshot.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        const hostData = data.players[data.hostId];
+                        // 방장의 이름에 해당 학년/반이 포함되어 있으면 삭제
+                        if(hostData && hostData.name.includes(`${delGrade}학년 ${delClass}반`)) {
+                            deleteDoc(docSnap.ref);
+                            count++;
+                        }
+                    });
+                    alert(`${count}개의 방(대결) 기록이 성공적으로 삭제되었습니다.`);
+                    setDelGrade(''); setDelClass('');
+                } catch(e) { alert('삭제 중 오류가 발생했습니다.'); console.error(e); }
             };
 
             if (isTeacherMenu) {
                 if (!isPwdChecked) {
                     return (
-                        <div className="flex flex-col items-center justify-center pt-10 h-full w-full max-w-sm mx-auto px-4">
+                        <div className="flex flex-col items-center justify-center h-full w-full max-w-sm mx-auto px-4">
                             <div className="bg-white w-full p-8 rounded-3xl border border-indigo-200 shadow-xl relative animate-in zoom-in-95 text-center">
                                 <button onClick={() => setIsTeacherMenu(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700">✕</button>
                                 <Settings className="w-10 h-10 text-indigo-600 mx-auto mb-4" />
                                 <h2 className="text-xl font-black text-slate-800 mb-2">교사 인증</h2>
                                 <p className="text-xs text-slate-500 mb-6">설정에 접근하려면 비밀번호를 입력하세요.</p>
-                                
-                                <input 
-                                    type="password" 
-                                    value={pwdInput} 
-                                    onChange={(e) => setPwdInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if(e.key === 'Enter') {
-                                            if(pwdInput === getTeacherPwd()) setIsPwdChecked(true);
-                                            else { alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }
-                                        }
-                                    }}
-                                    placeholder="비밀번호" 
-                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 mb-4 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
-                                />
-                                <button 
-                                    onClick={() => {
-                                        if(pwdInput === getTeacherPwd()) setIsPwdChecked(true);
-                                        else { alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }
-                                    }} 
-                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-md"
-                                >
-                                    확인
-                                </button>
+                                <input type="password" value={pwdInput} onChange={(e) => setPwdInput(e.target.value)}
+                                    onKeyDown={(e) => { if(e.key === 'Enter') { pwdInput === getTeacherPwd() ? setIsPwdChecked(true) : alert('비밀번호가 틀렸습니다.'); setPwdInput(''); } }}
+                                    placeholder="비밀번호" className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 mb-4 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner" />
+                                <button onClick={() => { pwdInput === getTeacherPwd() ? setIsPwdChecked(true) : alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }} 
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-md">확인</button>
                             </div>
                         </div>
                     );
                 }
 
                 return (
-                    <div className="flex flex-col items-center justify-start pt-4 sm:pt-8 h-full w-full max-w-2xl mx-auto px-4 overflow-y-auto custom-scrollbar pb-4">
+                    <div className="flex flex-col items-center justify-start pt-4 h-full w-full max-w-2xl mx-auto px-4 overflow-y-auto custom-scrollbar pb-4">
                         <div className="bg-white w-full p-6 sm:p-8 rounded-3xl border border-indigo-200 shadow-xl relative animate-in zoom-in-95">
-                            <button onClick={() => setIsTeacherMenu(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700">✕ 닫기</button>
+                            <button onClick={() => setIsTeacherMenu(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-bold">✕ 닫기</button>
                             <div className="flex items-center mb-6 border-b border-slate-100 pb-4">
                                 <Settings className="w-8 h-8 text-indigo-600 mr-3" />
                                 <h2 className="text-2xl font-black text-slate-800">선생님 전용 설정</h2>
                             </div>
 
                             <div className="space-y-6">
+                                {/* 방 생성 설정 */}
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">대결 모드 선택</label>
                                     <div className="grid grid-cols-3 gap-3">
@@ -414,7 +347,6 @@
                                         <button onClick={() => setTeacherConfig({...teacherConfig, mode: '1v1'})} className={`py-3 rounded-xl font-bold text-sm transition-all border-2 ${teacherConfig.mode === '1v1' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>1:1 진검승부</button>
                                     </div>
                                 </div>
-
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">게임 제한 시간</label>
                                     <div className="grid grid-cols-4 gap-3 mb-3">
@@ -423,54 +355,41 @@
                                         ))}
                                     </div>
                                     <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                        <span className="text-sm font-bold text-slate-600 flex items-center"><Clock className="w-4 h-4 mr-2 text-slate-400" /> 직접 설정 (초 단위)</span>
+                                        <span className="text-sm font-bold text-slate-600 flex items-center"><Clock className="w-4 h-4 mr-2 text-slate-400" /> 직접 설정 (초)</span>
                                         <div className="flex items-center">
-                                            <input 
-                                                type="number" 
-                                                value={teacherConfig.timeLimit} 
-                                                onChange={(e) => setTeacherConfig({...teacherConfig, timeLimit: e.target.value === '' ? '' : parseInt(e.target.value)})}
-                                                className="w-24 py-1.5 px-3 border border-slate-300 rounded-lg text-center font-black text-slate-800 focus:border-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-fuchsia-200 shadow-inner"
-                                                min="10"
-                                                max="3600"
-                                            />
-                                            <span className="ml-2 text-slate-500 font-bold text-sm">초</span>
+                                            <input type="number" value={teacherConfig.timeLimit} onChange={(e) => setTeacherConfig({...teacherConfig, timeLimit: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                                                className="w-24 py-1.5 px-3 border border-slate-300 rounded-lg text-center font-black text-slate-800 focus:border-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-fuchsia-200 shadow-inner" min="10" max="3600" />
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* 🚀 비밀번호 변경 섹션 추가 */}
-                                <div className="pt-4 border-t border-slate-100">
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">교사 설정 비밀번호 변경</label>
-                                    <div className="flex items-center space-x-2">
-                                        <input 
-                                            type="text" 
-                                            value={newPwdInput} 
-                                            onChange={(e) => setNewPwdInput(e.target.value)}
-                                            placeholder="새 비밀번호 입력"
-                                            className="flex-1 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
-                                        />
-                                        <button 
-                                            onClick={() => {
-                                                if(newPwdInput.trim().length === 0) {
-                                                    alert("새 비밀번호를 입력해주세요.");
-                                                    return;
-                                                }
-                                                localStorage.setItem('word_alchemist_teacher_pwd', newPwdInput.trim());
-                                                alert("비밀번호가 성공적으로 변경되었습니다.");
-                                                setNewPwdInput('');
-                                            }}
-                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold shadow-sm transition-colors text-sm whitespace-nowrap"
-                                        >
-                                            변경
-                                        </button>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 mt-1">※ 현재 브라우저에 저장됩니다. (초기 기본값: 1234)</p>
-                                </div>
-
-                                <div className="pt-4 mt-4 border-t border-slate-100">
-                                    <button onClick={() => onCreateRoom(teacherConfig.mode, Math.max(10, parseInt(teacherConfig.timeLimit) || 90), true)} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white rounded-xl font-bold shadow-lg flex justify-center items-center text-lg transition-transform hover:-translate-y-0.5">
+                                <div className="pt-2">
+                                    <button onClick={() => onCreateRoom(teacherConfig.mode, Math.max(10, parseInt(teacherConfig.timeLimit) || 90), true)} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white rounded-xl font-bold shadow-md flex justify-center items-center text-lg hover:opacity-90">
                                         <Sparkles className="w-5 h-5 mr-2" /> 이 설정으로 방 생성하기
                                     </button>
+                                </div>
+
+                                {/* 기록 삭제 기능 */}
+                                <div className="pt-6 mt-4 border-t-2 border-slate-100">
+                                    <label className="block text-sm font-bold text-red-600 mb-2">🚨 특정 학급 기록 초기화 (명예의 전당)</label>
+                                    <div className="flex items-center space-x-2 bg-red-50 p-3 rounded-xl border border-red-100">
+                                        <input type="number" value={delGrade} onChange={e => setDelGrade(e.target.value)} placeholder="학년" className="w-16 bg-white border border-slate-300 rounded-lg p-2 text-center text-sm font-bold" />
+                                        <span className="text-sm font-bold text-slate-600">학년</span>
+                                        <input type="number" value={delClass} onChange={e => setDelClass(e.target.value)} placeholder="반" className="w-16 bg-white border border-slate-300 rounded-lg p-2 text-center text-sm font-bold" />
+                                        <span className="text-sm font-bold text-slate-600">반</span>
+                                        <button onClick={handleDeleteClassData} className="ml-auto px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold text-sm shadow-sm">기록 삭제</button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1 pl-1">입력한 학년/반의 학생이 방장으로 만든 모든 대결 기록이 명예의 전당에서 삭제됩니다.</p>
+                                </div>
+
+                                {/* 비밀번호 변경 */}
+                                <div className="pt-4 border-t border-slate-100">
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">교사 메뉴 비밀번호 변경</label>
+                                    <div className="flex items-center space-x-2">
+                                        <input type="text" value={newPwdInput} onChange={(e) => setNewPwdInput(e.target.value)} placeholder="새 비밀번호 입력" className="flex-1 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
+                                        <button onClick={() => { if(!newPwdInput.trim()) return; localStorage.setItem('word_alchemist_teacher_pwd', newPwdInput.trim()); alert("변경되었습니다."); setNewPwdInput(''); }}
+                                            className="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm whitespace-nowrap hover:bg-slate-700">변경</button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1 pl-1">현재 브라우저(PC)에만 저장됩니다. (기본값: 1234)</p>
                                 </div>
                             </div>
                         </div>
@@ -479,116 +398,78 @@
             }
 
             return (
-                <div className="flex flex-col items-center justify-start pt-2 sm:pt-4 h-full w-full max-w-4xl mx-auto px-2 overflow-y-auto custom-scrollbar pb-4 space-y-3 sm:space-y-4">
-                    <div className="w-full flex justify-end px-2">
-                        <button onClick={handleTeacherMenuOpen} className="flex items-center text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                <div className="flex flex-col items-center justify-start h-full w-full max-w-4xl mx-auto px-2 overflow-y-auto custom-scrollbar space-y-3 pb-4">
+                    {/* 교사 설정 버튼 */}
+                    <div className="w-full flex justify-end px-2 pt-1">
+                        <button onClick={handleTeacherMenuOpen} className="flex items-center text-xs font-bold text-slate-400 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
                             <Settings className="w-3.5 h-3.5 mr-1" /> 교사 설정
                         </button>
                     </div>
-                    <div className="text-center space-y-1 sm:space-y-2 animate-in slide-in-from-top-4 fade-in duration-700 flex-shrink-0">
-                        <div className="inline-flex p-2 sm:p-3 rounded-full bg-white border-2 border-indigo-100 mb-1 shadow-[0_4px_15px_rgba(99,102,241,0.15)]">
-                            <Flame className="w-8 h-8 sm:w-10 sm:h-10 text-fuchsia-500 animate-pulse" />
+
+                    <div className="text-center space-y-1 animate-in slide-in-from-top-4 flex-shrink-0">
+                        <div className="inline-flex p-2 rounded-full bg-white border-2 border-indigo-100 shadow-[0_4px_15px_rgba(99,102,241,0.15)]">
+                            <Flame className="w-8 h-8 text-fuchsia-500 animate-pulse" />
                         </div>
-                        <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-fuchsia-600 via-indigo-600 to-amber-500 tracking-tight">
-                            단어 연금술사
-                        </h2>
-                        <p className="text-slate-500 text-xs sm:text-sm font-medium">알파벳 마법석을 조합해 전설의 단어를 연성하라!</p>
+                        <h2 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-fuchsia-600 via-indigo-600 to-amber-500">단어 연금술사</h2>
                     </div>
 
-                    <div className="w-full bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm z-10 relative flex-shrink-0">
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-xs font-bold shadow-md flex items-center">
-                            <User className="w-3 h-3 mr-1"/> 1단계: 연금술사 등록
-                        </div>
-                        
+                    <div className="w-full bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative flex-shrink-0">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-xs font-bold shadow-md flex items-center"><User className="w-3 h-3 mr-1"/> 1단계: 연금술사 등록</div>
                         <div className="grid grid-cols-4 gap-3 mt-2">
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">학년</label>
-                                <select name="grade" value={userInfo.grade} onChange={handleInfoChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner cursor-pointer">
-                                    <option value="">선택</option>
-                                    {[1, 2, 3, 4, 5, 6].map(g => <option key={g} value={g}>{g}학년</option>)}
+                                <select name="grade" value={userInfo.grade} onChange={handleInfoChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold focus:ring-2 focus:ring-indigo-500">
+                                    <option value="">선택</option>{[1,2,3,4,5,6].map(g => <option key={g} value={g}>{g}학년</option>)}
                                 </select>
                             </div>
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">반</label>
-                                <select name="classNum" value={userInfo.classNum} onChange={handleInfoChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner cursor-pointer">
-                                    <option value="">선택</option>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map(c => <option key={c} value={c}>{c}반</option>)}
+                                <select name="classNum" value={userInfo.classNum} onChange={handleInfoChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold focus:ring-2 focus:ring-indigo-500">
+                                    <option value="">선택</option>{Array.from({length:15},(_,i)=>i+1).map(c => <option key={c} value={c}>{c}반</option>)}
                                 </select>
                             </div>
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">번호</label>
-                                <input type="number" name="studentNum" value={userInfo.studentNum} onChange={handleInfoChange} placeholder="15" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner" />
+                                <input type="number" name="studentNum" value={userInfo.studentNum} onChange={handleInfoChange} placeholder="15" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div className="col-span-2 sm:col-span-1">
                                 <label className="block text-[10px] text-indigo-600 mb-1 ml-1 font-bold">이름</label>
-                                <input type="text" name="name" value={userInfo.name} onChange={handleInfoChange} placeholder="홍길동" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center text-slate-900 text-base font-bold focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner" />
+                                <input type="text" name="name" value={userInfo.name} onChange={handleInfoChange} placeholder="홍길동" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold focus:ring-2 focus:ring-indigo-500" />
                             </div>
                         </div>
                     </div>
 
-                    <div className={`w-full transition-all duration-700 ease-out transform flex-shrink-0 ${isInfoComplete ? 'opacity-100 translate-y-0' : 'opacity-40 pointer-events-none translate-y-4'}`}>
-                        <div className="text-center mb-2 sm:mb-3 mt-1">
-                            <span className="bg-fuchsia-50 text-fuchsia-700 px-3 py-1 rounded-full text-[11px] font-bold border border-fuchsia-200 shadow-sm">
-                                2단계: 도전 모드 선택
-                            </span>
-                        </div>
+                    <div className={`w-full transition-all duration-500 flex-shrink-0 ${isInfoComplete ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                        <div className="text-center mb-2"><span className="bg-fuchsia-50 text-fuchsia-700 px-3 py-1 rounded-full text-[11px] font-bold border border-fuchsia-200">2단계: 도전 모드 선택</span></div>
 
                         {!selectedMode ? (
-                            <div className="grid sm:grid-cols-3 gap-4">
-                                <button onClick={() => onCreateRoom('single')} className="flex flex-col items-center p-5 bg-white hover:bg-fuchsia-50/50 rounded-2xl border border-slate-200 hover:border-fuchsia-400 transition-all group shadow-sm hover:shadow-md hover:-translate-y-1">
-                                    <div className="bg-fuchsia-50 p-3 rounded-xl mb-3 group-hover:scale-110 transition-transform"><User className="w-6 h-6 text-fuchsia-500" /></div>
-                                    <h4 className="font-black text-slate-800 text-base mb-1 group-hover:text-fuchsia-600">1인 연습</h4>
-                                    <p className="text-[11px] text-slate-500 text-center">혼자서 단어 연성<br/>최고 기록 세우기</p>
+                            <div className="grid sm:grid-cols-3 gap-3">
+                                <button onClick={() => onCreateRoom('single')} className="flex flex-col items-center p-4 bg-white hover:bg-fuchsia-50 rounded-2xl border border-slate-200 hover:border-fuchsia-400 group shadow-sm hover:shadow-md">
+                                    <div className="bg-fuchsia-50 p-2.5 rounded-xl mb-2"><User className="w-5 h-5 text-fuchsia-500" /></div>
+                                    <h4 className="font-black text-slate-800 text-sm mb-1">1인 연습</h4>
                                 </button>
-                                <button onClick={() => setSelectedMode('1v1')} className="flex flex-col items-center p-5 bg-white hover:bg-amber-50/50 rounded-2xl border border-slate-200 hover:border-amber-400 transition-all group shadow-sm hover:shadow-md hover:-translate-y-1">
-                                    <div className="bg-amber-50 p-3 rounded-xl mb-3 group-hover:scale-110 transition-transform"><Swords className="w-6 h-6 text-amber-500" /></div>
-                                    <h4 className="font-black text-slate-800 text-base mb-1 group-hover:text-amber-600">1:1 진검승부</h4>
-                                    <p className="text-[11px] text-slate-500 text-center">친구와 방을 파서<br/>둘이서 점수 대결</p>
+                                <button onClick={() => setSelectedMode('1v1')} className="flex flex-col items-center p-4 bg-white hover:bg-amber-50 rounded-2xl border border-slate-200 hover:border-amber-400 group shadow-sm hover:shadow-md">
+                                    <div className="bg-amber-50 p-2.5 rounded-xl mb-2"><Swords className="w-5 h-5 text-amber-500" /></div>
+                                    <h4 className="font-black text-slate-800 text-sm mb-1">1:1 진검승부</h4>
                                 </button>
-                                <button onClick={() => setSelectedMode('team')} className="flex flex-col items-center p-5 bg-white hover:bg-blue-50/50 rounded-2xl border border-slate-200 hover:border-blue-400 transition-all group shadow-sm hover:shadow-md hover:-translate-y-1">
-                                    <div className="bg-blue-50 p-3 rounded-xl mb-3 group-hover:scale-110 transition-transform"><Users2 className="w-6 h-6 text-blue-500" /></div>
-                                    <h4 className="font-black text-slate-800 text-base mb-1 group-hover:text-blue-600">학급 팀 대결</h4>
-                                    <p className="text-[11px] text-slate-500 text-center">다같이 모여<br/>팀별 점수 합산 대결</p>
+                                <button onClick={() => setSelectedMode('team')} className="flex flex-col items-center p-4 bg-white hover:bg-blue-50 rounded-2xl border border-slate-200 hover:border-blue-400 group shadow-sm hover:shadow-md">
+                                    <div className="bg-blue-50 p-2.5 rounded-xl mb-2"><Users2 className="w-5 h-5 text-blue-500" /></div>
+                                    <h4 className="font-black text-slate-800 text-sm mb-1">학급 팀 대결</h4>
                                 </button>
                             </div>
                         ) : (
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg max-w-2xl mx-auto animate-in zoom-in-95 duration-300">
-                                <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                                    <h3 className="text-lg font-bold text-slate-800 flex items-center">
-                                        {selectedMode === '1v1' ? <><Swords className="w-5 h-5 mr-2 text-amber-500"/> 1:1 대결 준비</> : <><Users2 className="w-5 h-5 mr-2 text-blue-500"/> 학급 팀 대결 준비</>}
-                                   </h3>
-                                    <button onClick={() => setSelectedMode(null)} className="text-xs text-slate-500 hover:text-slate-800 flex items-center px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors font-medium">
-                                        <ArrowRight className="w-3 h-3 mr-1" style={{transform: "rotate(180deg)"}} /> 다른 모드
-                                    </button>
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-md">
+                                <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
+                                    <h3 className="text-base font-bold flex items-center">{selectedMode === '1v1' ? <Swords className="w-4 h-4 mr-2 text-amber-500"/> : <Users2 className="w-4 h-4 mr-2 text-blue-500"/>} {selectedMode === '1v1' ? '1:1 대결 준비' : '학급 팀 대결 준비'}</h3>
+                                    <button onClick={() => setSelectedMode(null)} className="text-[10px] bg-slate-100 px-2 py-1 rounded-full">다른 모드</button>
                                 </div>
-                                
-                                <div className="grid sm:grid-cols-2 gap-5">
-                                    <div className="space-y-3">
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center h-full flex flex-col justify-center">
-                                            <p className="text-xs text-slate-500 mb-3 font-medium">내가 방장이 되어 친구 초대하기</p>
-                                            <button onClick={() => onCreateRoom(selectedMode)} className="w-full py-3 bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white rounded-lg font-bold shadow-md flex justify-center items-center transition-all hover:shadow-lg hover:-translate-y-0.5 text-sm">
-                                                <Sparkles className="w-4 h-4 mr-2" /> 새 마법진 생성
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3 relative">
-                                        <div className="hidden sm:block absolute -left-2.5 top-1/2 -translate-y-1/2 w-px h-full bg-slate-200"></div>
-                                        <div className="hidden sm:flex absolute -left-4 top-1/2 -translate-y-1/2 bg-white text-slate-400 text-[10px] px-1 py-1.5 font-black z-10">OR</div>
-
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center h-full flex flex-col justify-center">
-                                            <p className="text-xs text-slate-500 mb-2 font-medium">만들어진 마법진 코드 입력</p>
-                                            <input 
-                                                type="text" 
-                                                value={joinCode}
-                                                onChange={(e) => setJoinCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
-                                                placeholder="번호 4자리"
-                                                className="w-full bg-white border border-slate-300 rounded-lg p-2 mb-2 text-center text-xl font-black tracking-[0.2em] text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-colors shadow-inner"
-                                            />
-                                            <button onClick={() => onJoinRoom(joinCode)} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition-colors shadow-sm text-sm">
-                                                입장하기
-                                            </button>
-                                        </div>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <button onClick={() => onCreateRoom(selectedMode)} className="w-full py-3 bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white rounded-xl font-bold text-sm shadow-md flex justify-center items-center hover:opacity-90">
+                                        <Sparkles className="w-4 h-4 mr-2" /> 새 마법진 생성
+                                    </button>
+                                    <div className="flex space-x-2">
+                                        <input type="text" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} placeholder="코드 4자리" className="w-1/2 bg-slate-50 border border-slate-300 rounded-xl p-2 text-center text-lg font-black tracking-widest focus:ring-2 focus:ring-indigo-500" />
+                                        <button onClick={() => onJoinRoom(joinCode)} className="w-1/2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-700">입장하기</button>
                                     </div>
                                 </div>
                             </div>
@@ -599,378 +480,185 @@
         }
 
         // --- 하위 컴포넌트: 대기실 ---
-        function WaitingRoomView({ roomData, user }) {
+        function WaitingRoomView({ roomData, user, appId }) {
             const isHost = roomData.hostId === user.uid;
             const players = Object.entries(roomData.players || {});
             const isTeamMode = roomData.mode === 'team';
-            const isClassMode = roomData.mode === 'class';
             const timeLimit = roomData.timeLimit || 90;
 
             const handleStartGame = async () => {
                 if (!isHost) return;
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
-                await updateDoc(roomRef, {
-                    status: 'playing',
-                    endTime: Date.now() + timeLimit * 1000, 
-                    letters: generateLetters(), 
-                    words: {}
-                });
+                await updateDoc(roomRef, { status: 'playing', endTime: Date.now() + timeLimit * 1000, letters: generateLetters(), words: {}, meanings: {} });
             };
 
             const handleSwitchTeam = async () => {
                 if (!isTeamMode) return;
-                const myTeam = roomData.players[user.uid]?.team;
-                const newTeam = myTeam === 'red' ? 'blue' : 'red';
+                const newTeam = roomData.players[user.uid]?.team === 'red' ? 'blue' : 'red';
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
-                await updateDoc(roomRef, {
-                    [`players.${user.uid}.team`]: newTeam
-                });
+                await updateDoc(roomRef, { [`players.${user.uid}.team`]: newTeam });
             };
 
             return (
-                <div className="max-w-4xl w-full mx-auto flex flex-col h-full space-y-4 animate-in fade-in pb-4">
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 text-center flex flex-col sm:flex-row items-center justify-between shadow-sm flex-shrink-0">
-                        <div className="text-left mb-3 sm:mb-0">
-                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2 inline-block border border-indigo-100">
-                                {roomData.mode === '1v1' ? '1:1 대결 모드' : isClassMode ? '학급 전체 개인전' : '학급 팀 대결 모드'} ({timeLimit}초)
-                            </span>
-                            <p className="text-slate-500 text-xs font-medium">친구에게 아래 코드를 알려주세요</p>
+                <div className="max-w-4xl w-full mx-auto flex flex-col h-full space-y-3 animate-in fade-in pb-2">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 text-center flex justify-between items-center shadow-sm flex-shrink-0">
+                        <div className="text-left">
+                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-bold border border-indigo-100">{roomData.mode === '1v1' ? '1:1 대결' : roomData.mode === 'class' ? '학급 개인전' : '팀 대결'} ({timeLimit}초)</span>
+                            <p className="text-slate-500 text-[10px] mt-1">친구에게 코드를 알려주세요</p>
                         </div>
-                        <div className="text-5xl font-black text-amber-500 tracking-[0.2em] drop-shadow-sm">
-                            {roomData.roomId}
-                        </div>
+                        <div className="text-4xl font-black text-amber-500 tracking-[0.2em] drop-shadow-sm">{roomData.roomId}</div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-[150px]">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar min-h-[100px]">
                         {isTeamMode ? (
-                            <div className="grid md:grid-cols-2 gap-4 h-full">
-                                <div className="bg-white border border-red-200 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col">
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-full -mr-8 -mt-8 opacity-50 pointer-events-none"></div>
-                                    <h3 className="text-lg font-bold text-red-600 mb-3 flex items-center border-b border-red-100 pb-2 flex-shrink-0"><Shield className="w-4 h-4 mr-2"/> 레드 팀</h3>
-                                    <div className="space-y-2 relative z-10 flex-1 overflow-y-auto custom-scrollbar">
-                                        {players.filter(([uid, p]) => p.team === 'red').map(([uid, p]) => (
-                                            <div key={uid} className="bg-red-50 border border-red-100 p-2 rounded-lg text-red-900 font-bold text-sm flex justify-between items-center">
-                                                {p.name} {uid === user.uid && <span className="text-[10px] bg-red-200 text-red-800 px-1.5 py-0.5 rounded-md">나</span>}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="bg-white border border-blue-200 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col">
-                                     <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full -mr-8 -mt-8 opacity-50 pointer-events-none"></div>
-                                    <h3 className="text-lg font-bold text-blue-600 mb-3 flex items-center border-b border-blue-100 pb-2 flex-shrink-0"><Shield className="w-4 h-4 mr-2"/> 블루 팀</h3>
-                                    <div className="space-y-2 relative z-10 flex-1 overflow-y-auto custom-scrollbar">
-                                        {players.filter(([uid, p]) => p.team === 'blue').map(([uid, p]) => (
-                                            <div key={uid} className="bg-blue-50 border border-blue-100 p-2 rounded-lg text-blue-900 font-bold text-sm flex justify-between items-center">
-                                                {p.name} {uid === user.uid && <span className="text-[10px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-md">나</span>}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                            <div className="grid grid-cols-2 gap-3 h-full">
+                                <div className="bg-white border border-red-200 rounded-2xl p-3 shadow-sm flex flex-col"><h3 className="text-sm font-bold text-red-600 mb-2 border-b border-red-100 pb-1">레드 팀</h3><div className="space-y-1 overflow-y-auto">{players.filter(([_, p]) => p.team === 'red').map(([uid, p]) => <div key={uid} className="bg-red-50 p-1.5 rounded-lg text-red-900 text-xs font-bold">{p.name}</div>)}</div></div>
+                                <div className="bg-white border border-blue-200 rounded-2xl p-3 shadow-sm flex flex-col"><h3 className="text-sm font-bold text-blue-600 mb-2 border-b border-blue-100 pb-1">블루 팀</h3><div className="space-y-1 overflow-y-auto">{players.filter(([_, p]) => p.team === 'blue').map(([uid, p]) => <div key={uid} className="bg-blue-50 p-1.5 rounded-lg text-blue-900 text-xs font-bold">{p.name}</div>)}</div></div>
                             </div>
                         ) : (
-                            <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center shadow-sm h-full flex flex-col">
-                                <h3 className="text-lg font-bold mb-4 text-slate-800 flex-shrink-0">참여한 연금술사 ({roomData.mode === '1v1' ? `${players.length}/2` : `${players.length}명`})</h3>
-                                <div className="flex flex-wrap justify-center gap-3 flex-1 content-start overflow-y-auto custom-scrollbar">
-                                    {players.map(([uid, p]) => (
-                                        <div key={uid} className={`px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold shadow-sm flex items-center ${p.isTeacher ? 'text-indigo-600 border-indigo-200 bg-indigo-50' : 'text-slate-800'}`}>
-                                            {p.name} {uid === user.uid && <span className="text-indigo-600 text-xs ml-2 bg-indigo-200 px-1.5 py-0.5 rounded-md">나</span>}
-                                        </div>
-                                    ))}
-                                </div>
+                            <div className="bg-white rounded-2xl p-4 border border-slate-200 text-center h-full">
+                                <h3 className="text-sm font-bold mb-3 text-slate-800">참여 연금술사 ({roomData.mode === '1v1' ? `${players.length}/2` : players.length})</h3>
+                                <div className="flex flex-wrap justify-center gap-2">{players.map(([uid, p]) => <div key={uid} className={`px-3 py-1.5 border rounded-xl text-xs font-bold ${p.isTeacher ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>{p.name}</div>)}</div>
                             </div>
                         )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center items-center flex-shrink-0 mt-2">
-                        {isTeamMode && (
-                            <button onClick={handleSwitchTeam} className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-slate-50 text-slate-800 rounded-xl font-bold transition-all border border-slate-300 shadow-sm text-sm">
-                                팀 바꾸기
-                            </button>
-                        )}
-                        
+                    <div className="flex gap-2 justify-center flex-shrink-0">
+                        {isTeamMode && <button onClick={handleSwitchTeam} className="px-4 py-2 bg-white text-slate-800 rounded-lg font-bold border border-slate-300 text-xs">팀 변경</button>}
                         {isHost ? (
-                            <button 
-                                onClick={handleStartGame}
-                                disabled={roomData.mode === '1v1' && players.length < 2}
-                                className="w-full sm:flex-1 max-w-md py-3 text-base bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg disabled:shadow-none flex justify-center items-center"
-                            >
-                                <Play className="w-5 h-5 mr-2" /> 
-                                {roomData.mode === '1v1' && players.length < 2 ? '상대방을 기다리는 중...' : '연금술 대결 시작!'}
-                            </button>
-                        ) : (
-                            <div className="w-full sm:flex-1 max-w-md py-3 text-sm bg-slate-100 text-slate-500 rounded-xl font-bold flex justify-center items-center animate-pulse border border-slate-200">
-                                <Clock className="w-4 h-4 mr-2" /> 방장의 시작을 기다리는 중...
-                            </div>
-                        )}
+                            <button onClick={handleStartGame} disabled={roomData.mode === '1v1' && players.length < 2} className="flex-1 py-3 bg-emerald-500 text-white rounded-lg font-bold text-sm disabled:opacity-50 flex justify-center items-center"><Play className="w-4 h-4 mr-1" /> 시작</button>
+                        ) : (<div className="flex-1 py-3 bg-slate-100 text-slate-500 rounded-lg font-bold text-xs flex justify-center items-center animate-pulse">방장 대기중...</div>)}
                     </div>
                 </div>
             );
         }
 
         // --- 하위 컴포넌트: 게임 매니저 ---
-        function GameManager({ roomData, user }) {
+        function GameManager({ roomData, user, appId }) {
             const [timeLeft, setTimeLeft] = useState(0);
 
             useEffect(() => {
                 if (!roomData.endTime) return;
-                
                 const updateTimer = () => {
                     const remaining = Math.max(0, Math.floor((roomData.endTime - Date.now()) / 1000));
                     setTimeLeft(remaining);
-                    
                     if (remaining === 0 && roomData.status === 'playing' && roomData.hostId === user.uid) {
-                        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
-                        updateDoc(roomRef, { status: 'finished' }).catch(console.error);
+                        updateDoc(doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId), { status: 'finished' });
                     }
                 };
-
                 updateTimer();
                 const interval = setInterval(updateTimer, 500);
                 return () => clearInterval(interval);
-            }, [roomData.endTime, roomData.status, roomData.hostId, user.uid, roomData.roomId]);
+            }, [roomData.endTime, roomData.status, roomData.hostId, user.uid, appId, roomData.roomId]);
 
-            if (timeLeft === 0 || roomData.status === 'finished') {
-                return <ResultView roomData={roomData} user={user} />;
-            }
-
-            return <GamePlayView roomData={roomData} user={user} timeLeft={timeLeft} />;
+            if (timeLeft === 0 || roomData.status === 'finished') return <ResultView roomData={roomData} user={user} />;
+            return <GamePlayView roomData={roomData} user={user} appId={appId} timeLeft={timeLeft} />;
         }
 
         // --- 하위 컴포넌트: 실제 플레이 화면 ---
-        function GamePlayView({ roomData, user, timeLeft }) {
+        function GamePlayView({ roomData, user, appId, timeLeft }) {
             const [selectedIndices, setSelectedIndices] = useState([]);
             const [localError, setLocalError] = useState('');
             const [isChecking, setIsChecking] = useState(false);
             const letters = roomData.letters || [];
 
             const handleKeyDown = useCallback((e) => {
-                if (e.key === 'Enter') {
-                    if (!isChecking) handleSubmit();
-                } else if (e.key === 'Backspace') {
-                    setSelectedIndices(prev => prev.slice(0, -1));
-                } else if (/^[a-zA-Z]$/.test(e.key)) {
+                if (e.key === 'Enter') { if (!isChecking) handleSubmit(); }
+                else if (e.key === 'Backspace') setSelectedIndices(prev => prev.slice(0, -1));
+                else if (/^[a-zA-Z]$/.test(e.key)) {
                     const char = e.key.toUpperCase();
                     const availableIndex = letters.findIndex((l, i) => l === char && !selectedIndices.includes(i));
-                    if (availableIndex !== -1) {
-                        setSelectedIndices(prev => [...prev, availableIndex]);
-                    }
+                    if (availableIndex !== -1) setSelectedIndices(prev => [...prev, availableIndex]);
                 }
             }, [selectedIndices, letters, isChecking]);
 
-            useEffect(() => {
-                window.addEventListener('keydown', handleKeyDown);
-                return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [handleKeyDown]);
+            useEffect(() => { window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown); }, [handleKeyDown]);
 
-            const mySubmittedWords = useMemo(() => {
-                const wordsObj = roomData.words || {};
-                return Object.entries(wordsObj)
-                    .filter(([word, finders]) => finders.includes(user.uid))
-                    .map(([word]) => word)
-                    .reverse();
-            }, [roomData.words, user.uid]);
+            const mySubmittedWords = useMemo(() => Object.entries(roomData.words || {}).filter(([word, finders]) => finders.includes(user.uid)).map(([word]) => word).reverse(), [roomData.words, user.uid]);
 
             const handleSubmit = async () => {
                 if (isChecking) return;
-                if (selectedIndices.length < 2) {
-                    setLocalError("2글자 이상 입력하세요!");
-                    setTimeout(()=>setLocalError(''), 1500);
-                    return;
-                }
+                if (selectedIndices.length < 2) { setLocalError("2글자 이상 입력하세요!"); setTimeout(()=>setLocalError(''), 1500); return; }
                 const cleanWord = selectedIndices.map(idx => letters[idx]).join('');
-                
-                // 🚀 금기어 검사
-                if (containsProfanity(cleanWord)) {
-                    setLocalError("금지된 단어는 연성할 수 없습니다! 🚫");
-                    setSelectedIndices([]);
-                    setTimeout(()=>setLocalError(''), 2000);
-                    return;
-                }
-
-                if (mySubmittedWords.includes(cleanWord)) {
-                    setLocalError("이미 연성한 단어입니다!");
-                    setSelectedIndices([]);
-                    setTimeout(()=>setLocalError(''), 1500);
-                    return;
-                }
+                if (containsProfanity(cleanWord)) { setLocalError("금지어 차단 🚫"); setSelectedIndices([]); setTimeout(()=>setLocalError(''), 1500); return; }
+                if (mySubmittedWords.includes(cleanWord)) { setLocalError("이미 연성한 단어입니다!"); setSelectedIndices([]); setTimeout(()=>setLocalError(''), 1500); return; }
 
                 setIsChecking(true);
-                
                 let isValidWord = false;
                 let fetchedMeaning = roomData.meanings?.[cleanWord] || "";
 
-                // 다른 사람이 이미 찾은 단어라면 뜻도 이미 DB에 있으므로 검증 패스 (속도 최적화)
-                if (fetchedMeaning || (roomData.words && roomData.words[cleanWord])) {
-                    isValidWord = true;
-                } else {
-                    setLocalError("사전 검색 중... 🔍");
+                if (fetchedMeaning || (roomData.words && roomData.words[cleanWord])) isValidWord = true;
+                else {
+                    setLocalError("검색 중... 🔍");
                     try {
-                        // 외부 API로 단어 존재 여부 확인
-                        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
-                        if (res.ok) {
-                            isValidWord = true;
-                            COMMON_WORDS_DB.add(cleanWord); 
-                        } else if (COMMON_WORDS_DB.has(cleanWord)) {
-                            // API에 없더라도 로컬 사전에 있으면 허용
-                            isValidWord = true;
+                        if (COMMON_WORDS_DB.has(cleanWord)) isValidWord = true;
+                        else {
+                            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
+                            if (res.ok) { isValidWord = true; COMMON_WORDS_DB.add(cleanWord); }
                         }
-
-                        // 🚀 단어가 유효하다면 구글 번역 API를 통해 '한글 뜻' 가져오기
                         if (isValidWord && !fetchedMeaning) {
-                            try {
-                                const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${cleanWord}`);
-                                if (transRes.ok) {
-                                    const transData = await transRes.json();
-                                    fetchedMeaning = transData[0][0][0]; // 한글 번역 결과 추출
-                                }
-                            } catch(e) {
-                                console.error("한글 번역 실패:", e);
-                            }
+                            const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${cleanWord}`);
+                            if (transRes.ok) { const transData = await transRes.json(); fetchedMeaning = transData[0][0][0]; }
                         }
-                    } catch (err) {
-                        console.error("API 검증 중 오류:", err);
-                        if (COMMON_WORDS_DB.has(cleanWord)) {
-                            isValidWord = true;
-                        } else {
-                            setLocalError("검색 서버 오류! ⚠️");
-                            setTimeout(()=>setLocalError(''), 1500);
-                            setIsChecking(false);
-                            return;
-                        }
-                    }
+                    } catch (err) { isValidWord = COMMON_WORDS_DB.has(cleanWord); }
                 }
 
-                if (!isValidWord) {
-                    setLocalError("사전에 없는 단어입니다! ❌");
-                    setTimeout(()=>setLocalError(''), 2000);
-                    setIsChecking(false);
-                    return;
-                }
+                if (!isValidWord) { setLocalError("없는 단어입니다! ❌"); setTimeout(()=>setLocalError(''), 1500); setIsChecking(false); return; }
 
-                // 검증 통과 시 데이터베이스에 단어와 뜻 저장
                 try {
-                    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId);
-                    const updatePayload = {
-                        [`words.${cleanWord}`]: arrayUnion(user.uid)
-                    };
-                    if (fetchedMeaning && !roomData.meanings?.[cleanWord]) {
-                        updatePayload[`meanings.${cleanWord}`] = fetchedMeaning;
-                    }
-                    await updateDoc(roomRef, updatePayload);
-                    setSelectedIndices([]);
-                    setLocalError('');
-                } catch (err) {
-                    setLocalError("저장 오류!");
-                } finally {
-                    setIsChecking(false);
-                }
+                    const updatePayload = { [`words.${cleanWord}`]: arrayUnion(user.uid) };
+                    if (fetchedMeaning && !roomData.meanings?.[cleanWord]) updatePayload[`meanings.${cleanWord}`] = fetchedMeaning;
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId), updatePayload);
+                    setSelectedIndices([]); setLocalError('');
+                } catch (err) {} finally { setIsChecking(false); }
             };
 
-            const handlePoolTileClick = (index) => {
-                if (!selectedIndices.includes(index)) setSelectedIndices(prev => [...prev, index]);
-            };
-            const handleSelectedTileClick = (pos) => {
-                setSelectedIndices(prev => prev.filter((_, i) => i !== pos));
-            };
-            
             const currentBaseScore = selectedIndices.reduce((acc, idx) => acc + (LETTER_SCORES[letters[idx]] || 0), 0) + getLengthBonus(selectedIndices.length);
 
             return (
-                <div className="flex flex-col lg:flex-row gap-4 h-full w-full overflow-hidden">
-                    <div className="flex-1 flex flex-col space-y-3 min-w-0 h-full">
-                        <div className="bg-white rounded-xl p-3 flex items-center justify-between shadow-sm border border-slate-200 flex-shrink-0">
-                            <div className="flex items-center text-slate-600 font-bold text-sm">
-                                <Clock className={`w-5 h-5 mr-2 ${timeLeft <= 10 ? 'text-red-500 animate-bounce' : 'text-fuchsia-500'}`} />남은 시간
+                <div className="flex flex-col lg:flex-row gap-3 h-full w-full overflow-hidden">
+                    <div className="flex-1 flex flex-col space-y-2 min-w-0 h-full">
+                        <div className="bg-white rounded-xl p-2 flex justify-between shadow-sm border border-slate-200 flex-shrink-0">
+                            <div className="flex items-center text-slate-600 font-bold text-xs"><Clock className={`w-4 h-4 mr-1 ${timeLeft <= 10 ? 'text-red-500 animate-bounce' : 'text-fuchsia-500'}`} />시간</div>
+                            <div className={`text-xl font-black font-mono tracking-tighter ${timeLeft <= 10 ? 'text-red-500' : 'text-slate-800'}`}>0{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</div>
+                        </div>
+
+                        <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-3 flex flex-col items-center justify-center relative shadow-sm min-h-[120px]">
+                            <h3 className="absolute top-2 left-3 text-[10px] text-indigo-500 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">조합대</h3>
+                            <div className="flex-1 flex justify-center content-center flex-wrap gap-1.5 w-full mt-4 overflow-y-auto custom-scrollbar">
+                                {selectedIndices.length === 0 ? <div className="text-slate-400 text-xs flex items-center border-b border-dashed px-2">입력...</div> : 
+                                    selectedIndices.map((idx, pos) => <button key={pos} onClick={() => setSelectedIndices(prev => prev.filter((_, i) => i !== pos))} className="w-8 h-10 sm:w-10 sm:h-12 bg-indigo-600 text-white rounded-lg flex justify-center items-center text-xl font-black shadow-[0_3px_0_rgb(67,56,202)] hover:bg-red-500 hover:-translate-y-0.5">{letters[idx]}</button>)}
                             </div>
-                            <div className={`text-2xl font-black font-mono tracking-tighter ${timeLeft <= 10 ? 'text-red-500' : 'text-slate-800'}`}>
-                                0{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}
+                            <div className="h-4 mb-2 flex-shrink-0 flex items-center text-[10px]">
+                                {localError ? <span className="text-red-500 font-bold animate-pulse">{localError}</span> : (selectedIndices.length > 0 && <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">예상 {currentBaseScore}점</span>)}
+                            </div>
+                            <div className="flex gap-2 w-full max-w-xs flex-shrink-0">
+                                <button onClick={() => setSelectedIndices(prev => prev.slice(0, -1))} disabled={selectedIndices.length === 0 || isChecking} className="flex-1 py-1.5 bg-slate-100 text-slate-700 rounded-lg font-bold text-xs">지우기</button>
+                                <button onClick={handleSubmit} disabled={selectedIndices.length < 2 || isChecking} className="flex-[2] py-1.5 bg-amber-400 text-slate-900 rounded-lg font-bold flex justify-center items-center text-xs shadow-[0_2px_0_rgb(217,119,6)]"><Wand2 className="w-3 h-3 mr-1"/> {isChecking?'검색중':'연성'}</button>
                             </div>
                         </div>
 
-                        <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center justify-center relative shadow-sm min-h-[150px]">
-                            <h3 className="absolute top-3 left-4 text-xs text-indigo-500 font-bold tracking-widest bg-indigo-50 px-2 py-1 rounded-md">조합대</h3>
-                            
-                            <div className="flex-1 flex justify-center content-center flex-wrap gap-2 w-full mt-4 overflow-y-auto custom-scrollbar">
-                                {selectedIndices.length === 0 ? (
-                                    <div className="text-slate-400 text-sm font-medium flex items-center h-12 border-b-2 border-slate-200 border-dashed px-4">마법석 클릭 또는 키보드 입력...</div>
-                                ) : (
-                                    selectedIndices.map((idx, pos) => (
-                                        <button key={`sel-${pos}`} onClick={() => handleSelectedTileClick(pos)}
-                                            className="w-10 h-12 sm:w-12 sm:h-14 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-2xl font-black shadow-[0_3px_0_rgb(67,56,202)] hover:bg-red-500 hover:shadow-[0_3px_0_rgb(185,28,28)] hover:-translate-y-0.5 transition-all active:translate-y-0.5 active:shadow-none animate-in zoom-in duration-200 flex-shrink-0">
-                                            {letters[idx]}
-                                        </button>
-                                    ))
-                                )}
-                            </div>
-                            
-                            <div className="h-6 mb-3 flex-shrink-0 flex items-center justify-center">
-                                {localError ? <p className="text-red-500 font-bold text-xs animate-pulse">{localError}</p> : 
-                                    (selectedIndices.length > 0 && <p className="text-amber-600 font-bold text-xs bg-amber-50 px-3 py-1 rounded-full border border-amber-100">예상 {currentBaseScore}점 (독점 시 보너스!)</p>)}
-                            </div>
-
-                            <div className="flex gap-2 w-full max-w-sm flex-shrink-0">
-                                <button onClick={() => setSelectedIndices(prev => prev.slice(0, -1))} disabled={selectedIndices.length === 0 || isChecking}
-                                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-50 text-slate-700 rounded-lg font-bold shadow-sm transition-colors text-sm">지우기</button>
-                                <button onClick={handleSubmit} disabled={selectedIndices.length < 2 || isChecking}
-                                    className="flex-[2] py-2.5 bg-amber-400 hover:bg-amber-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 text-slate-900 rounded-lg font-bold shadow-[0_3px_0_rgb(217,119,6)] hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none disabled:shadow-none border border-amber-500 transition-all flex justify-center items-center text-sm">
-                                        <Wand2 className="w-4 h-4 mr-2" /> {isChecking ? '검색 중...' : '연성 (Enter)'}
-                                    </button>
-                            </div>
-                        </div>
-
-                        <div className="bg-slate-100 p-3 sm:p-4 rounded-2xl border border-slate-200 text-center shadow-inner flex-shrink-0">
-                            <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 max-w-xl mx-auto">
+                        <div className="bg-slate-100 p-2 rounded-2xl border border-slate-200 text-center flex-shrink-0 shadow-inner">
+                            <div className="flex flex-wrap justify-center gap-1">
                                 {letters.map((char, i) => {
                                     const isUsed = selectedIndices.includes(i);
-                                    return (
-                                        <button key={`pool-${i}`} onClick={() => handlePoolTileClick(i)} disabled={isUsed}
-                                            className={`relative w-9 h-10 sm:w-10 sm:h-12 rounded-lg flex items-center justify-center text-lg sm:text-xl font-bold transition-all duration-200 flex-shrink-0
-                                                ${isUsed ? 'bg-slate-200 text-slate-400 border border-slate-300 scale-95 shadow-none' 
-                                                         : 'bg-white text-slate-800 shadow-[0_3px_0_rgb(203,213,225)] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none border border-slate-300'}`}>
-                                            {char}
-                                            {!isUsed && <span className="absolute bottom-0.5 right-1 text-[9px] opacity-60 font-sans text-slate-500 leading-none">{LETTER_SCORES[char]}</span>}
-                                        </button>
-                                    );
+                                    return <button key={i} onClick={() => {if(!isUsed) setSelectedIndices(prev=>[...prev, i])}} disabled={isUsed} className={`relative w-8 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${isUsed ? 'bg-slate-200 text-slate-400 scale-95' : 'bg-white text-slate-800 shadow-[0_2px_0_rgb(203,213,225)] hover:bg-indigo-50 border border-slate-300'}`}>{char}{!isUsed && <span className="absolute bottom-0 right-1 text-[8px] opacity-50">{LETTER_SCORES[char]}</span>}</button>
                                 })}
                             </div>
                         </div>
                     </div>
 
-                    <div className="lg:w-64 xl:w-80 flex-shrink-0 h-full flex flex-col">
-                        <div className="bg-white rounded-2xl p-4 h-full border border-slate-200 flex flex-col shadow-sm min-h-0">
-                            <h3 className="text-base font-bold text-slate-800 flex items-center mb-3 pb-3 border-b border-slate-100 flex-shrink-0">
-                                <BookOpen className="w-4 h-4 mr-2 text-indigo-500" /> 연성 일지
-                                <span className="ml-auto bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] py-0.5 px-2 rounded-full font-bold">{mySubmittedWords.length}개</span>
-                            </h3>
-                            <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                                {mySubmittedWords.length === 0 ? (
-                                    <div className="text-center text-slate-400 mt-6 text-xs font-medium">단어를 조합하여<br/>기록을 채워보세요!</div>
-                                ) : (
-                                    mySubmittedWords.map((word, idx) => {
-                                        let baseScore = getLengthBonus(word.length);
-                                        for(let char of word) baseScore += (LETTER_SCORES[char] || 0);
-                                        return (
-                                            <div key={idx} className="flex flex-col bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-black text-slate-700 tracking-wider text-sm">{word}</span>
-                                                    <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">{baseScore} 점</span>
-                                                </div>
-                                                {/* 🚀 단어 뜻 렌더링 */}
-                                                {roomData.meanings?.[word] && (
-                                                    <div className="text-[10px] text-slate-500 mt-1 leading-tight line-clamp-2" title={roomData.meanings[word]}>
-                                                        {roomData.meanings[word]}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })
-                                )}
+                    <div className="lg:w-48 xl:w-64 flex-shrink-0 h-full flex flex-col">
+                        <div className="bg-white rounded-2xl p-3 h-full border border-slate-200 flex flex-col shadow-sm">
+                            <h3 className="text-xs font-bold text-slate-800 flex items-center mb-2 pb-2 border-b border-slate-100"><BookOpen className="w-3 h-3 mr-1 text-indigo-500" /> 연성 일지 <span className="ml-auto bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-full">{mySubmittedWords.length}개</span></h3>
+                            <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+                                {mySubmittedWords.map((word, idx) => (
+                                    <div key={idx} className="flex flex-col bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                                        <div className="flex justify-between items-center"><span className="font-black text-slate-700 text-xs">{word}</span><span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">{getLengthBonus(word.length) + word.split('').reduce((a,c)=>a+(LETTER_SCORES[c]||0),0)}점</span></div>
+                                        {roomData.meanings?.[word] && <div className="text-[9px] text-slate-500 leading-tight truncate mt-0.5">{roomData.meanings[word]}</div>}
+                                    </div>
+                                ))}
                             </div>
-                            {roomData.mode !== 'single' && (
-                                <div className="mt-3 text-[10px] text-slate-600 bg-slate-50 border border-slate-200 p-2 rounded-lg leading-relaxed font-medium flex-shrink-0">
-                                    💡 <strong className="text-fuchsia-600">비밀 유지 중:</strong> 남들이 못 찾은 나만의 단어는 <span className="text-amber-600 font-bold">독점 보너스(2배+5점)</span> 획득!
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -979,156 +667,81 @@
 
         // --- 하위 컴포넌트: 결과 화면 ---
         function ResultView({ roomData, user }) {
-            const { mode, players } = roomData;
-            
             const { ranking, teamScores, wordDetails, totalWordsFound } = useMemo(() => {
-                const scores = {};
-                Object.keys(players || {}).forEach(uid => scores[uid] = 0);
-                
-                let teamRedScore = 0;
-                let teamBlueScore = 0;
-
-                const details = [];
-                const wordsObj = roomData.words || {};
-                
-                Object.entries(wordsObj).forEach(([word, finders]) => {
+                const scores = {}; Object.keys(roomData.players || {}).forEach(uid => scores[uid] = 0);
+                let tRed = 0, tBlue = 0; const details = [];
+                Object.entries(roomData.words || {}).forEach(([word, finders]) => {
                     if (finders.length === 0) return;
-
-                    let baseScore = getLengthBonus(word.length);
-                    for (let char of word) baseScore += (LETTER_SCORES[char] || 0);
-
-                    const isExclusive = mode !== 'single' && finders.length === 1;
-                    const finalScore = isExclusive ? (baseScore * 2 + 5) : baseScore;
-
+                    let bScore = getLengthBonus(word.length) + word.split('').reduce((a,c)=>a+(LETTER_SCORES[c]||0),0);
+                    const isEx = roomData.mode !== 'single' && finders.length === 1;
+                    const fScore = isEx ? (bScore * 2 + 5) : bScore;
                     finders.forEach(uid => {
-                        if (scores[uid] !== undefined) scores[uid] += finalScore;
-                        if (mode === 'team') {
-                            if (players[uid]?.team === 'red') teamRedScore += finalScore;
-                            if (players[uid]?.team === 'blue') teamBlueScore += finalScore;
-                        }
+                        if (scores[uid] !== undefined) scores[uid] += fScore;
+                        if (roomData.mode === 'team') { roomData.players[uid]?.team === 'red' ? tRed += fScore : tBlue += fScore; }
                     });
-
-                    details.push({ word, finders, isExclusive, score: finalScore });
+                    details.push({ word, finders, isExclusive: isEx, score: fScore });
                 });
-
-                const rankArr = Object.entries(scores).map(([uid, score]) => ({
-                    uid,
-                    name: players[uid]?.name || '알수없음',
-                    team: players[uid]?.team,
-                    score
-                })).sort((a,b) => b.score - a.score);
-
-                const shuffledDetails = [...details].sort(() => Math.random() - 0.5);
-
-                return { ranking: rankArr, teamScores: { red: teamRedScore, blue: teamBlueScore }, wordDetails: shuffledDetails, totalWordsFound: details.length };
-            }, [roomData.players, roomData.words, mode]);
+                return { 
+                    ranking: Object.entries(scores).map(([uid, s]) => ({ uid, name: roomData.players[uid]?.name||'', team: roomData.players[uid]?.team, score: s })).sort((a,b) => b.score - a.score), 
+                    teamScores: { red: tRed, blue: tBlue }, wordDetails: details.sort(()=>Math.random()-0.5), totalWordsFound: details.length 
+                };
+            }, [roomData.players, roomData.words, roomData.mode]);
 
             return (
-                <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-700 overflow-y-auto custom-scrollbar pb-4 px-1">
-                    <div className="text-center space-y-2 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
-                        <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-amber-500 mx-auto animate-bounce" />
-                        <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-amber-500 via-fuchsia-600 to-indigo-600">
-                            {mode === 'single' ? '연성 완료! 내 기록' : mode === '1v1' ? '대결 종료! 승자는?' : mode === 'class' ? '학급 개인전 종료! 순위표' : '팀 대결 종료!'}
-                        </h2>
+                <div className="h-full flex flex-col space-y-3 overflow-y-auto custom-scrollbar pb-2">
+                    <div className="text-center bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
+                        <h2 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-fuchsia-600">{roomData.mode === 'single' ? '내 기록' : roomData.mode === '1v1' ? '대결 종료!' : roomData.mode === 'class' ? '순위표' : '팀 대결 종료!'}</h2>
                     </div>
-
-                    <div className="flex flex-col md:flex-row gap-4 flex-shrink-0">
-                        {mode === 'team' && (
-                            <div className="flex-1 flex justify-center items-center gap-4 py-2">
-                                <div className={`p-4 rounded-2xl border-[3px] flex flex-col items-center w-32 sm:w-40 ${teamScores.red >= teamScores.blue ? 'bg-white border-red-400 shadow-md' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
-                                    <Shield className={`w-8 h-8 mb-2 ${teamScores.red >= teamScores.blue ? 'text-red-500' : 'text-slate-400'}`} />
-                                    <h3 className={`text-lg font-bold ${teamScores.red >= teamScores.blue ? 'text-red-600' : 'text-slate-500'}`}>레드 팀</h3>
-                                    <p className={`text-3xl font-black mt-1 ${teamScores.red >= teamScores.blue ? 'text-slate-800' : 'text-slate-400'}`}>{teamScores.red}</p>
-                                </div>
-                                <div className="text-xl font-black text-slate-300">VS</div>
-                                <div className={`p-4 rounded-2xl border-[3px] flex flex-col items-center w-32 sm:w-40 ${teamScores.blue >= teamScores.red ? 'bg-white border-blue-400 shadow-md' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
-                                    <Shield className={`w-8 h-8 mb-2 ${teamScores.blue >= teamScores.red ? 'text-blue-500' : 'text-slate-400'}`} />
-                                    <h3 className={`text-lg font-bold ${teamScores.blue >= teamScores.red ? 'text-blue-600' : 'text-slate-500'}`}>블루 팀</h3>
-                                    <p className={`text-3xl font-black mt-1 ${teamScores.blue >= teamScores.red ? 'text-slate-800' : 'text-slate-400'}`}>{teamScores.blue}</p>
-                                </div>
+                    <div className="flex flex-col md:flex-row gap-3 flex-shrink-0">
+                        {roomData.mode === 'team' && (
+                            <div className="flex-1 flex justify-center items-center gap-3">
+                                <div className={`p-3 rounded-2xl border-2 flex flex-col items-center w-24 ${teamScores.red >= teamScores.blue ? 'bg-white border-red-400 shadow-md' : 'bg-slate-50 border-slate-200'}`}><h3 className="text-xs font-bold text-red-600 mb-1">레드</h3><p className="text-2xl font-black text-slate-800">{teamScores.red}</p></div>
+                                <div className="text-sm font-black text-slate-300">VS</div>
+                                <div className={`p-3 rounded-2xl border-2 flex flex-col items-center w-24 ${teamScores.blue >= teamScores.red ? 'bg-white border-blue-400 shadow-md' : 'bg-slate-50 border-slate-200'}`}><h3 className="text-xs font-bold text-blue-600 mb-1">블루</h3><p className="text-2xl font-black text-slate-800">{teamScores.blue}</p></div>
                             </div>
                         )}
-
-                        <div className="flex-1 bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col min-h-[180px] max-h-[250px] w-full max-w-2xl mx-auto">
-                            <h3 className="text-lg font-black flex items-center justify-center mb-4 text-slate-800 flex-shrink-0">
-                                <Trophy className="w-5 h-5 mr-2 text-amber-500" /> 종합 순위표
-                            </h3>
-                            <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1 pr-2">
-                                {ranking.map((player, idx) => {
-                                    const isMe = player.uid === user.uid;
-                                    const myExclusiveCount = mode !== 'single' ? wordDetails.filter(w => w.isExclusive && w.finders.includes(player.uid)).length : 0;
-
-                                    return (
-                                        <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border ${
-                                            idx === 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'
-                                        } ${isMe ? 'ring-1 ring-fuchsia-400 bg-fuchsia-50/30' : ''}`}>
-                                            <div className="flex items-center">
-                                                <span className={`w-6 font-black text-base text-center ${idx < 3 ? 'text-amber-500' : 'text-slate-400'}`}>{idx + 1}</span>
-                                                {mode === 'team' && (
-                                                    <div className={`w-3 h-3 rounded-full mx-2 shadow-sm ${player.team === 'red' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                                                )}
-                                                <span className={`font-bold text-sm sm:text-base ${isMe ? 'text-indigo-900' : 'text-slate-700'} ${mode !== 'team' && 'ml-2'}`}>
-                                                    {player.name}
-                                                </span>
-                                                {myExclusiveCount > 0 && (
-                                                    <span className="ml-2 text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700 px-2 py-0.5 rounded-full border border-fuchsia-200 hidden sm:inline-block">독점 {myExclusiveCount}</span>
-                                                )}
-                                            </div>
-                                            <div className={`font-black text-lg ${idx === 0 ? 'text-amber-600' : 'text-slate-700'}`}>
-                                                {player.score} <span className="text-xs font-bold text-slate-400">점</span>
-                                            </div>
+                        <div className="flex-1 bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col min-h-[150px] max-h-[200px]">
+                            <h3 className="text-sm font-black text-slate-800 flex items-center justify-center mb-2"><Trophy className="w-4 h-4 mr-1 text-amber-500" /> 순위표</h3>
+                            <div className="space-y-1.5 overflow-y-auto custom-scrollbar flex-1 pr-1">
+                                {ranking.map((player, idx) => (
+                                    <div key={idx} className={`flex justify-between items-center p-2 rounded-xl border ${idx===0?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200'} ${player.uid===user.uid?'ring-1 ring-fuchsia-400 bg-fuchsia-50/30':''}`}>
+                                        <div className="flex items-center">
+                                            <span className={`w-5 font-black text-xs text-center ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span>
+                                            {roomData.mode === 'team' && <div className={`w-2 h-2 rounded-full mx-1 ${player.team==='red'?'bg-red-500':'bg-blue-500'}`} />}
+                                            <span className={`font-bold text-[11px] sm:text-xs ${player.uid===user.uid?'text-indigo-900':'text-slate-700'}`}>{player.name}</span>
                                         </div>
-                                    )
-                                })}
+                                        <div className={`font-black text-sm ${idx===0?'text-amber-600':'text-slate-700'}`}>{player.score}</div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
-
-                    {mode !== 'single' && (
-                        <div className="bg-white rounded-2xl p-4 border border-indigo-100 relative overflow-hidden shadow-sm flex flex-col flex-1 min-h-[150px]">
-                            <div className="absolute top-0 right-0 bg-indigo-50 px-3 py-1 rounded-bl-xl text-[10px] font-bold text-indigo-700 border-b border-l border-indigo-100 z-10">☁️ 전체 단어 구름</div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-wrap justify-center content-start gap-x-4 gap-y-2 pt-6 pb-2">
-                                {wordDetails.map((w, i) => {
-                                    const isMine = w.finders.includes(user.uid);
-                                    let sizeClass = w.isExclusive ? 'text-2xl sm:text-3xl font-black z-10' : (w.finders.length > 2 ? 'text-xs opacity-50 font-medium' : 'text-sm sm:text-base font-bold opacity-80');
-                                    let colorClass = w.isExclusive ? (isMine ? 'text-amber-500 drop-shadow-sm' : 'text-fuchsia-500 drop-shadow-sm') : 'text-indigo-400';
-                                    let extraStyle = w.isExclusive ? { transform: `rotate(${Math.random() * 10 - 5}deg)` } : {};
-
-                                    return (
-                                        <span key={i} className={`${sizeClass} ${colorClass} transition-all hover:scale-125 relative group cursor-default`} style={extraStyle}>
-                                            {w.word}
-                                            {/* 🚀 단어 구름 툴팁에 뜻풀이 추가 */}
-                                            <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 shadow-lg opacity-0 group-hover:opacity-100 z-50 whitespace-nowrap font-bold transition-opacity">
-                                                <div>{w.isExclusive ? '👑 독점! ' : '👥 '}({w.finders.map(id => players[id]?.name.split(' ')[1] || '누군가').join(', ')})</div>
-                                                {roomData.meanings?.[w.word] && (
-                                                    <div className="mt-1 border-t border-slate-100 pt-1 text-slate-500 font-normal max-w-[180px] whitespace-normal text-left leading-tight">
-                                                        {roomData.meanings[w.word]}
-                                                    </div>
-                                                )}
-                                            </span>
+                    {roomData.mode !== 'single' && (
+                        <div className="bg-white rounded-2xl p-3 border border-indigo-100 flex-1 min-h-[120px] relative">
+                            <div className="absolute top-0 right-0 bg-indigo-50 px-2 py-0.5 rounded-bl-xl text-[9px] font-bold text-indigo-700">전체 단어</div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-wrap justify-center content-start gap-x-3 gap-y-1.5 pt-4 pb-1 h-full">
+                                {wordDetails.map((w, i) => (
+                                    <span key={i} className={`relative group ${w.isExclusive ? 'text-lg font-black z-10 '+(w.finders.includes(user.uid)?'text-amber-500':'text-fuchsia-500') : (w.finders.length>2?'text-[10px] opacity-50':'text-xs font-bold opacity-80 text-indigo-400')}`} style={w.isExclusive?{transform:`rotate(${Math.random()*10-5}deg)`}:{}}>
+                                        {w.word}
+                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-white text-slate-800 text-[9px] px-1.5 py-1 rounded border shadow-md opacity-0 group-hover:opacity-100 z-50 whitespace-nowrap">
+                                            <div>{w.isExclusive?'👑':'👥'}({w.finders.map(id=>roomData.players[id]?.name.split(' ')[1]||'').join(', ')})</div>
+                                            {roomData.meanings?.[w.word] && <div className="mt-0.5 border-t text-slate-500">{roomData.meanings[w.word]}</div>}
                                         </span>
-                                    );
-                                })}
+                                    </span>
+                                ))}
                             </div>
                         </div>
                     )}
-                    
-                    <div className="text-center pt-2 pb-2 flex-shrink-0">
-                         <button onClick={() => window.location.reload()} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-sm transition-colors shadow-md hover:shadow-lg hover:-translate-y-0.5">
-                            새 게임 시작하기
-                        </button>
-                    </div>
+                    <div className="text-center flex-shrink-0"><button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-800 text-white rounded-xl font-bold text-xs shadow-md">새 게임</button></div>
                 </div>
             );
         }
 
-        // 🚀 명예의 전당 컴포넌트 (모든 기록 집계)
+        // --- 하위 컴포넌트: 명예의 전당 ---
         function HallOfFameView({ onBack, db, appId }) {
             const [loading, setLoading] = useState(true);
             const [leaderboard, setLeaderboard] = useState([]);
             const [teamBattles, setTeamBattles] = useState([]);
-            const [filterGrade, setFilterGrade] = useState('');
-            const [filterClass, setFilterClass] = useState('');
             const [activeTab, setActiveTab] = useState('ranking');
 
             useEffect(() => {
@@ -1137,142 +750,69 @@
                     try {
                         const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
                         const allRooms = snapshot.docs.map(d => d.data()).filter(r => r.status === 'finished');
-
-                        const scoresByName = {};
-                        const tBattles = [];
+                        const scoresByName = {}; const tBattles = [];
 
                         allRooms.forEach(room => {
-                            let roomRedScore = 0;
-                            let roomBlueScore = 0;
-                            const wordsObj = room.words || {};
-
-                            Object.entries(wordsObj).forEach(([word, finders]) => {
+                            let roomRed = 0, roomBlue = 0;
+                            Object.entries(room.words || {}).forEach(([word, finders]) => {
                                 if (finders.length === 0) return;
-                                let baseScore = getLengthBonus(word.length);
-                                for (let char of word) baseScore += (LETTER_SCORES[char] || 0);
-                                const isExclusive = room.mode !== 'single' && finders.length === 1;
-                                const finalScore = isExclusive ? (baseScore * 2 + 5) : baseScore;
+                                let bScore = getLengthBonus(word.length) + word.split('').reduce((a,c)=>a+(LETTER_SCORES[c]||0),0);
+                                const isEx = room.mode !== 'single' && finders.length === 1;
+                                const fScore = isEx ? (bScore * 2 + 5) : bScore;
 
                                 finders.forEach(uid => {
                                     const p = room.players[uid];
-                                    if (p && !p.isTeacher) { // 선생님 점수는 순위표에서 제외
-                                        if (!scoresByName[p.name]) scoresByName[p.name] = { name: p.name, score: 0, grade: '', classNum: '' };
-                                        scoresByName[p.name].score += finalScore;
-
-                                        const gMatch = p.name.match(/(\d+)학년/);
-                                        const cMatch = p.name.match(/(\d+)반/);
-                                        if (gMatch) scoresByName[p.name].grade = gMatch[1];
-                                        if (cMatch) scoresByName[p.name].classNum = cMatch[1];
-
-                                        if (room.mode === 'team') {
-                                            if (p.team === 'red') roomRedScore += finalScore;
-                                            if (p.team === 'blue') roomBlueScore += finalScore;
-                                        }
+                                    if (p && !p.isTeacher) {
+                                        if (!scoresByName[p.name]) scoresByName[p.name] = { name: p.name, score: 0 };
+                                        scoresByName[p.name].score += fScore;
+                                        if (room.mode === 'team') { p.team === 'red' ? roomRed += fScore : roomBlue += fScore; }
                                     }
                                 });
                             });
-
-                            if (room.mode === 'team') {
-                                tBattles.push({
-                                    roomId: room.roomId,
-                                    hostName: room.players[room.hostId]?.name || '알수없음',
-                                    redScore: roomRedScore,
-                                    blueScore: roomBlueScore,
-                                    date: room.endTime || Date.now()
-                                });
-                            }
+                            if (room.mode === 'team') tBattles.push({ hostName: room.players[room.hostId]?.name||'알수없음', redScore: roomRed, blueScore: roomBlue, date: room.endTime||Date.now() });
                         });
-
                         setLeaderboard(Object.values(scoresByName).sort((a, b) => b.score - a.score));
                         setTeamBattles(tBattles.sort((a, b) => b.date - a.date));
-                    } catch (err) {
-                        console.error("데이터 로드 실패", err);
-                    } finally {
-                        setLoading(false);
-                    }
+                    } catch (err) {} finally { setLoading(false); }
                 };
                 fetchData();
             }, [db, appId]);
 
-            const filteredLeaderboard = leaderboard.filter(p => {
-                if (filterGrade && p.grade !== filterGrade) return false;
-                if (filterClass && p.classNum !== filterClass) return false;
-                return true;
-            });
-
             return (
-                <div className="flex flex-col items-center justify-start pt-4 h-full w-full max-w-3xl mx-auto px-4 overflow-y-auto custom-scrollbar pb-4 animate-in fade-in">
-                    <div className="w-full flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
-                        <h2 className="text-2xl font-black text-slate-800 flex items-center">
-                            <Trophy className="w-6 h-6 mr-2 text-amber-500" /> 명예의 전당
-                        </h2>
-                        <button onClick={onBack} className="text-sm font-bold text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-                            ✕ 돌아가기
-                        </button>
+                <div className="flex flex-col h-full w-full max-w-3xl mx-auto px-2 pb-2">
+                    <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                        <h2 className="text-xl font-black flex items-center text-slate-800"><Trophy className="w-5 h-5 mr-1 text-amber-500" /> 명예의 전당</h2>
+                        <button onClick={onBack} className="text-xs bg-white border px-3 py-1.5 rounded-full font-bold shadow-sm">✕ 닫기</button>
                     </div>
-
-                    <div className="flex w-full mb-4 bg-slate-100 p-1 rounded-xl flex-shrink-0">
-                        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'ranking' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>개인 누적 랭킹</button>
-                        <button onClick={() => setActiveTab('team')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'team' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>팀 대결 결과</button>
+                    <div className="flex w-full mb-3 bg-slate-100 p-1 rounded-lg flex-shrink-0">
+                        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-1.5 rounded-md text-xs font-bold ${activeTab==='ranking'?'bg-white text-indigo-600 shadow-sm':'text-slate-500'}`}>개인 누적 랭킹</button>
+                        <button onClick={() => setActiveTab('team')} className={`flex-1 py-1.5 rounded-md text-xs font-bold ${activeTab==='team'?'bg-white text-indigo-600 shadow-sm':'text-slate-500'}`}>팀 대결 결과</button>
                     </div>
-
-                    {loading ? (
-                        <div className="py-20 text-slate-500 font-bold animate-pulse">기록을 불러오는 중...</div>
-                    ) : activeTab === 'ranking' ? (
-                        <div className="w-full space-y-4">
-                            <div className="flex space-x-2 mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                                <input type="number" placeholder="학년 필터" value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="w-24 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
-                                <input type="number" placeholder="반 필터" value={filterClass} onChange={e => setFilterClass(e.target.value)} className="w-24 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
-                                <button onClick={() => { setFilterGrade(''); setFilterClass(''); }} className="ml-auto px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">조건 초기화</button>
-                            </div>
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
-                                {filteredLeaderboard.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-500">기록이 없습니다.</div>
-                                ) : (
-                                    filteredLeaderboard.map((p, idx) => (
-                                        <div key={idx} className={`flex items-center justify-between p-4 border-b border-slate-100 last:border-0 ${idx < 3 ? 'bg-amber-50/30' : ''}`}>
-                                            <div className="flex items-center">
-                                                <span className={`w-8 font-black text-center ${idx < 3 ? 'text-amber-500 text-lg' : 'text-slate-400'}`}>{idx + 1}</span>
-                                                <span className="font-bold text-slate-700 ml-2">{p.name}</span>
-                                            </div>
-                                            <div className="font-black text-slate-800">{p.score} <span className="text-xs font-normal text-slate-500">점</span></div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="w-full space-y-4">
-                            {teamBattles.length === 0 ? (
-                                <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">팀 대결 기록이 없습니다.</div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-white rounded-2xl border shadow-sm p-3">
+                        {loading ? <div className="text-center text-xs text-slate-400 mt-10">불러오는 중...</div> : 
+                            activeTab === 'ranking' ? (
+                                leaderboard.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> :
+                                leaderboard.map((p, idx) => (
+                                    <div key={idx} className={`flex items-center justify-between p-3 border-b border-slate-100 last:border-0 ${idx<3?'bg-amber-50/30 rounded-lg':''}`}>
+                                        <div className="flex items-center"><span className={`w-6 font-black text-center text-sm ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span><span className="text-xs font-bold text-slate-700 ml-2">{p.name}</span></div>
+                                        <div className="font-black text-sm text-slate-800">{p.score} <span className="text-[10px] font-normal text-slate-500">점</span></div>
+                                    </div>
+                                ))
                             ) : (
-                                teamBattles.map((battle, idx) => (
-                                    <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                        <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
-                                            <span className="text-xs font-bold text-slate-400">{new Date(battle.date).toLocaleString()}</span>
-                                            <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md">방장: {battle.hostName}</span>
-                                        </div>
-                                        <div className="flex justify-center items-center gap-6">
-                                            <div className="text-center">
-                                                <h4 className="text-sm font-bold text-red-500 mb-1">레드 팀</h4>
-                                                <p className={`text-2xl font-black ${battle.redScore >= battle.blueScore ? 'text-slate-800' : 'text-slate-400'}`}>{battle.redScore}</p>
-                                            </div>
-                                            <div className="text-xl font-black text-slate-300">VS</div>
-                                            <div className="text-center">
-                                                <h4 className="text-sm font-bold text-blue-500 mb-1">블루 팀</h4>
-                                                <p className={`text-2xl font-black ${battle.blueScore >= battle.redScore ? 'text-slate-800' : 'text-slate-400'}`}>{battle.blueScore}</p>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 text-center">
-                                            <span className="text-sm font-black bg-slate-100 px-4 py-1.5 rounded-full text-slate-700">
-                                                {battle.redScore === battle.blueScore ? '무승부!' : battle.redScore > battle.blueScore ? '🏆 레드 팀 승리!' : '👑 블루 팀 승리!'}
-                                            </span>
+                                teamBattles.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">대결 기록이 없습니다.</div> :
+                                teamBattles.map((b, idx) => (
+                                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3">
+                                        <div className="text-[10px] text-slate-400 mb-2">{new Date(b.date).toLocaleString()} (방장: {b.hostName})</div>
+                                        <div className="flex justify-around items-center text-center">
+                                            <div><div className="text-[10px] font-bold text-red-500">레드 팀</div><div className="text-lg font-black">{b.redScore}</div></div>
+                                            <div className="text-xs font-black text-slate-300">VS</div>
+                                            <div><div className="text-[10px] font-bold text-blue-500">블루 팀</div><div className="text-lg font-black">{b.blueScore}</div></div>
                                         </div>
                                     </div>
                                 ))
-                            )}
-                        </div>
-                    )}
+                            )
+                        }
+                    </div>
                 </div>
             );
         }
