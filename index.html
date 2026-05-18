@@ -774,10 +774,12 @@
         // --- 하위 컴포넌트: 명예의 전당 ---
         function HallOfFameView({ onBack, db, appId }) {
             const [loading, setLoading] = useState(true);
-            const [leaderboard, setLeaderboard] = useState([]);
-            const [teamBattles, setTeamBattles] = useState([]);
-            const [classBattles, setClassBattles] = useState([]);
+            const [allData, setAllData] = useState({ leaderboard: [], teamBattles: [], classBattles: [] });
             const [activeTab, setActiveTab] = useState('ranking');
+            
+            // 필터링 상태 추가
+            const [filterGrade, setFilterGrade] = useState('');
+            const [filterClass, setFilterClass] = useState('');
 
             useEffect(() => {
                 const fetchData = async () => {
@@ -789,11 +791,18 @@
                         const tBattles = [];
                         const cBattles = [];
 
+                        // 해당 방의 학년/반을 판별하기 위한 대표자(학생) 이름 찾기 함수
+                        const getRepName = (room) => {
+                            const host = room.players?.[room.hostId];
+                            if (host && !host.isTeacher) return host.name;
+                            const student = Object.values(room.players || {}).find(p => !p.isTeacher);
+                            return student ? student.name : '';
+                        };
+
                         allRooms.forEach(room => {
                             let roomRed = 0, roomBlue = 0;
                             let currentRoomPlayers = {};
                             
-                            // 방 안의 플레이어 초기화 (교사 제외)
                             Object.entries(room.players || {}).forEach(([uid, p]) => {
                                 if (!p.isTeacher) {
                                     currentRoomPlayers[uid] = { name: p.name, team: p.team, score: 0 };
@@ -809,14 +818,11 @@
                                 finders.forEach(uid => {
                                     const p = room.players[uid];
                                     if (p && !p.isTeacher) {
-                                        // 1. 개인 누적 랭킹 업데이트
                                         if (!scoresByName[p.name]) scoresByName[p.name] = { name: p.name, score: 0 };
                                         scoresByName[p.name].score += fScore;
                                         
-                                        // 2. 방 안에서의 개인 획득 점수
                                         if (currentRoomPlayers[uid]) currentRoomPlayers[uid].score += fScore;
 
-                                        // 3. 팀 점수 합산
                                         if (room.mode === 'team') { 
                                             p.team === 'red' ? roomRed += fScore : roomBlue += fScore; 
                                         }
@@ -824,12 +830,14 @@
                                 });
                             });
 
-                            // 게임 모드별 기록 분류
+                            const repName = getRepName(room);
+
                             if (room.mode === 'team') {
                                 const redPlayers = Object.values(currentRoomPlayers).filter(p => p.team === 'red').sort((a,b)=>b.score-a.score);
                                 const bluePlayers = Object.values(currentRoomPlayers).filter(p => p.team === 'blue').sort((a,b)=>b.score-a.score);
                                 tBattles.push({ 
                                     hostName: room.players[room.hostId]?.name||'알수없음', 
+                                    repName: repName,
                                     redScore: roomRed, 
                                     blueScore: roomBlue, 
                                     redPlayers,
@@ -840,19 +848,43 @@
                                 const sortedPlayers = Object.values(currentRoomPlayers).sort((a,b)=>b.score-a.score);
                                 cBattles.push({
                                     hostName: room.players[room.hostId]?.name||'알수없음',
+                                    repName: repName,
                                     players: sortedPlayers,
                                     date: room.endTime||Date.now()
                                 });
                             }
                         });
                         
-                        setLeaderboard(Object.values(scoresByName).sort((a, b) => b.score - a.score));
-                        setTeamBattles(tBattles.sort((a, b) => b.date - a.date));
-                        setClassBattles(cBattles.sort((a, b) => b.date - a.date));
-                    } catch (err) {} finally { setLoading(false); }
+                        setAllData({
+                            leaderboard: Object.values(scoresByName).sort((a, b) => b.score - a.score),
+                            teamBattles: tBattles.sort((a, b) => b.date - a.date),
+                            classBattles: cBattles.sort((a, b) => b.date - a.date)
+                        });
+                    } catch (err) {
+                        console.error(err);
+                    } finally { 
+                        setLoading(false); 
+                    }
                 };
                 fetchData();
             }, [db, appId]);
+
+            // 필터링 적용 (useMemo로 최적화)
+            const { leaderboard, teamBattles, classBattles } = useMemo(() => {
+                const isMatch = (name) => {
+                    if (!name) return false;
+                    // 1반과 11반 구분을 위해 띄어쓰기 포함하여 검사
+                    const matchG = filterGrade === '' || name.includes(`${filterGrade}학년 `);
+                    const matchC = filterClass === '' || name.includes(` ${filterClass}반 `);
+                    return matchG && matchC;
+                };
+
+                return {
+                    leaderboard: allData.leaderboard.filter(p => isMatch(p.name)),
+                    teamBattles: allData.teamBattles.filter(b => isMatch(b.repName)),
+                    classBattles: allData.classBattles.filter(b => isMatch(b.repName))
+                };
+            }, [allData, filterGrade, filterClass]);
 
             return (
                 <div className="flex flex-col h-full w-full max-w-3xl mx-auto px-2 pb-2">
@@ -861,17 +893,29 @@
                         <button onClick={onBack} className="text-xs bg-white border px-3 py-1.5 rounded-full font-bold shadow-sm hover:bg-slate-50 transition-colors">✕ 닫기</button>
                     </div>
                     
-                    {/* 3개의 탭으로 분리 */}
+                    {/* 탭 메뉴 */}
                     <div className="flex w-full mb-3 bg-slate-100 p-1 rounded-lg flex-shrink-0">
                         <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='ranking'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>개인 누적 랭킹</button>
                         <button onClick={() => setActiveTab('class')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='class'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>학급 개인전 기록</button>
                         <button onClick={() => setActiveTab('team')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='team'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>팀 대결 기록</button>
                     </div>
+
+                    {/* 필터링 드롭다운 */}
+                    <div className="flex space-x-2 mb-3 flex-shrink-0">
+                        <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                            <option value="">모든 학년</option>
+                            {[1,2,3,4,5,6].map(g => <option key={g} value={g}>{g}학년</option>)}
+                        </select>
+                        <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                            <option value="">모든 반</option>
+                            {Array.from({length:15},(_,i)=>i+1).map(c => <option key={c} value={c}>{c}반</option>)}
+                        </select>
+                    </div>
                     
                     <div className="flex-1 overflow-y-auto custom-scrollbar bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
                         {loading ? <div className="text-center text-xs text-slate-400 mt-10 animate-pulse">마법진 기록을 불러오는 중...</div> : 
                             activeTab === 'ranking' ? (
-                                leaderboard.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> :
+                                leaderboard.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">해당 조건의 기록이 없습니다.</div> :
                                 leaderboard.map((p, idx) => (
                                     <div key={idx} className={`flex items-center justify-between p-3 border-b border-slate-100 last:border-0 ${idx<3?'bg-amber-50/30 rounded-lg':''}`}>
                                         <div className="flex items-center"><span className={`w-6 font-black text-center text-sm ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span><span className="text-xs font-bold text-slate-700 ml-2">{p.name}</span></div>
@@ -879,7 +923,7 @@
                                     </div>
                                 ))
                             ) : activeTab === 'class' ? (
-                                classBattles.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">학급 개인전 기록이 없습니다.</div> :
+                                classBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">해당 조건의 학급 개인전 기록이 없습니다.</div> :
                                 classBattles.map((b, idx) => (
                                     <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm">
                                         <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center">
@@ -891,7 +935,7 @@
                                                 <div key={i} className="flex justify-between items-center text-xs bg-white p-2 border border-slate-100 rounded-lg">
                                                     <div className="flex items-center">
                                                         <span className={`w-5 text-[10px] font-black ${i<3 ? 'text-amber-500' : 'text-slate-400'}`}>{i+1}</span>
-                                                        <span className="text-slate-700 font-bold truncate ml-1">{p.name}</span>
+                                                        <span className="text-slate-700 font-bold truncate ml-1">{p.name.split(' ').slice(-2).join(' ')}</span>
                                                     </div>
                                                     <span className="font-black text-indigo-600">{p.score} 점</span>
                                                 </div>
@@ -900,7 +944,7 @@
                                     </div>
                                 ))
                             ) : (
-                                teamBattles.length===0 ? <div className="text-center text-xs text-slate-400 mt-10">팀 대결 기록이 없습니다.</div> :
+                                teamBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">해당 조건의 팀 대결 기록이 없습니다.</div> :
                                 teamBattles.map((b, idx) => (
                                     <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm">
                                         <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center">
@@ -908,7 +952,7 @@
                                             <span className="font-bold">방장: {b.hostName}</span>
                                         </div>
                                         <div className="flex justify-between items-stretch gap-2 mt-2">
-                                            {/* 레드 팀 박스 */}
+                                            {/* 레드 팀 */}
                                             <div className="flex-1 bg-white border border-red-100 rounded-lg p-2 flex flex-col">
                                                 <div className="text-center mb-1 border-b border-red-50 pb-1">
                                                     <div className="text-[10px] font-bold text-red-500 mb-0.5">레드 팀</div>
@@ -924,12 +968,12 @@
                                                 </div>
                                             </div>
 
-                                            {/* VS 마크 */}
+                                            {/* VS */}
                                             <div className="flex flex-col justify-center items-center px-1">
                                                 <span className="text-[10px] font-black text-slate-300">VS</span>
                                             </div>
 
-                                            {/* 블루 팀 박스 */}
+                                            {/* 블루 팀 */}
                                             <div className="flex-1 bg-white border border-blue-100 rounded-lg p-2 flex flex-col">
                                                 <div className="text-center mb-1 border-b border-blue-50 pb-1">
                                                     <div className="text-[10px] font-bold text-blue-500 mb-0.5">블루 팀</div>
