@@ -4,20 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>단어 연금술사</title>
-
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
+    
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-    <!-- Babel (브라우저에서 JSX 컴파일) -->
+    
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* 커스텀 스크롤바 */
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f8fafc; }
@@ -29,27 +27,24 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        // Firebase 모듈 가져오기 (CDN)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- Firebase 초기화 ---
         let firebaseConfig = {};
         if (typeof __firebase_config !== 'undefined') {
             firebaseConfig = JSON.parse(__firebase_config);
         } else {
-            // [참고] 외부 서버에 호스팅할 경우 본인의 Firebase 설정을 여기에 입력하세요.
             firebaseConfig = {
-              apiKey: "AIzaSyAmEwu04hc28bJG3KN9UxGqWWtNxfK76ks",
-              authDomain: "alchemist-5aab3.firebaseapp.com",
-              projectId: "alchemist-5aab3",
-              storageBucket: "alchemist-5aab3.firebasestorage.app",
-              messagingSenderId: "473250249928",
-              appId: "1:473250249928:web:b5b8e0b5ed0d3e1ed0b9fd",
-              measurementId: "G-FFS3WYL797"
+                apiKey: "AIzaSyAeKjzEWOvqmP4hYRM_NEZY1GEZ1reerAI",
+                authDomain: "alchemist-ef277.firebaseapp.com",
+                projectId: "alchemist-ef277",
+                storageBucket: "alchemist-ef277.firebasestorage.app",
+                messagingSenderId: "485393554873",
+                appId: "1:485393554873:web:6cff9040cd70453d716a68",
+                measurementId: "G-CF71EZ2L7N"
             };
         }
         const app = initializeApp(firebaseConfig);
@@ -57,9 +52,8 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'word-alchemist-local';
         const ROOMS_COLLECTION = 'word_alchemist_rooms';
-        const SETTINGS_COLLECTION = 'word_alchemist_settings'; // 교사 비번 등 저장용
+        const SETTINGS_COLLECTION = 'word_alchemist_settings'; 
 
-        // --- SVG 아이콘 컴포넌트 ---
         const Icon = ({ path, className, style }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} dangerouslySetInnerHTML={{ __html: path }} />
         );
@@ -78,10 +72,9 @@
         const Trophy = (p) => <Icon {...p} path='<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>' />;
         const Settings = (p) => <Icon {...p} path='<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>' />;
 
-        // --- 게임 로직 ---
         const LETTER_SCORES = { A:1, E:1, I:1, O:1, U:1, L:1, N:1, S:1, T:1, R:1, D:2, G:2, B:3, C:3, M:3, P:3, F:4, H:4, V:4, W:4, Y:4, K:5, J:8, X:8, Q:10, Z:10 };
         const PROFANITY_LIST = ["시발", "씨발", "병신", "새끼", "지랄", "존나", "섹스", "느금", "애미", "애비", "개새", "FUCK", "SHIT", "BITCH", "CUNT", "DICK", "ASS", "SEX", "PORN", "SLUT"];
-
+        
         const getLengthBonus = (length) => {
             if (length <= 3) return 0;
             if (length === 4) return 2;
@@ -104,7 +97,6 @@
         // 빠른 검증을 위한 초경량 내장 사전 (빈출 단어)
         const COMMON_WORDS_DB = new Set(["THE", "BE", "TO", "OF", "AND", "A", "IN", "THAT", "HAVE", "I", "IT", "FOR", "NOT", "ON", "WITH", "HE", "AS", "YOU", "DO", "AT", "THIS", "BUT", "HIS", "BY", "FROM", "THEY", "WE", "SAY", "HER", "SHE", "OR", "AN", "WILL", "MY", "ONE", "ALL", "WOULD", "THERE", "THEIR", "WHAT", "SO", "UP", "OUT", "IF", "ABOUT", "WHO", "GET", "WHICH", "GO", "ME", "WHEN", "MAKE", "CAN", "LIKE", "TIME", "NO", "JUST", "HIM", "KNOW", "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "GOOD", "SOME", "COULD", "THEM", "SEE", "OTHER", "THAN", "THEN", "NOW", "LOOK", "ONLY", "COME", "ITS", "OVER", "THINK", "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", "WELL", "WAY", "EVEN", "NEW", "WANT", "BECAUSE", "ANY", "THESE", "GIVE", "DAY", "MOST", "US", "NET", "APPLE", "BANANA", "CAT", "DOG", "CAR", "RED", "BLUE", "GREEN", "TREE", "BOOK", "WATER", "FIRE", "EARTH", "AIR", "SUN", "MOON", "STAR", "BOY", "GIRL", "MAN", "WOMAN", "HOUSE", "SCHOOL", "FRIEND", "LOVE", "HAPPY", "SAD", "RUN", "WALK", "JUMP", "SWIM", "FLY", "EAT", "DRINK", "SLEEP", "WAKE"]);
 
-        // --- 메인 컴포넌트 ---
         function WordAlchemistApp() {
             const [user, setUser] = useState(null);
             const [roomId, setRoomId] = useState('');
@@ -121,7 +113,6 @@
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
-        // --- 하위 컴포넌트: 로비 ---
                         } else {
                             await signInAnonymously(auth);
                         }
@@ -315,7 +306,7 @@
             const [joinCode, setJoinCode] = useState('');
             const [isTeacherMenu, setIsTeacherMenu] = useState(false);
             const [teacherConfig, setTeacherConfig] = useState({ mode: 'class', timeLimit: 90 });
-
+            
             const [dbTeacherPwd, setDbTeacherPwd] = useState("1234");
             const [pwdInput, setPwdInput] = useState('');
             const [isPwdChecked, setIsPwdChecked] = useState(false);
@@ -323,14 +314,12 @@
             const [delGrade, setDelGrade] = useState('');
             const [delClass, setDelClass] = useState('');
 
-            // --- 새로 추가되는 상태: 학생 개별 기록 관리 ---
-            const [teacherTab, setTeacherTab] = useState('settings'); // 'settings' | 'records'
+            const [teacherTab, setTeacherTab] = useState('settings'); 
             const [studentRecords, setStudentRecords] = useState([]);
             const [recordLoading, setRecordLoading] = useState(false);
             const [filterRecGrade, setFilterRecGrade] = useState('');
             const [filterRecClass, setFilterRecClass] = useState('');
 
-            const getTeacherPwd = () => localStorage.getItem('word_alchemist_teacher_pwd') || "1234";
             useEffect(() => {
                 const fetchPwd = async () => {
                     try {
@@ -353,7 +342,6 @@
 
             const handleTeacherMenuOpen = () => { setIsTeacherMenu(true); setIsPwdChecked(false); setPwdInput(''); setTeacherTab('settings'); };
 
-            // 특정 학급 데이터 묶음 삭제 함수
             const handleChangePwd = async () => {
                 if(!newPwdInput.trim()) return;
                 try {
@@ -368,7 +356,7 @@
             const handleDeleteClassData = async () => {
                 if(!delGrade || !delClass) return alert('학년과 반을 모두 입력해주세요.');
                 if(!confirm(`정말 ${delGrade}학년 ${delClass}반 방장이 만든 대결 및 순위 기록을 삭제하시겠습니까? (복구 불가)`)) return;
-
+                
                 try {
                     const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
                     let count = 0;
@@ -385,17 +373,16 @@
                 } catch(e) { alert('삭제 중 오류가 발생했습니다.'); console.error(e); }
             };
 
-            // 전체 학생 기록 불러오기 함수
             const loadStudentRecords = async () => {
                 setRecordLoading(true);
                 try {
                     const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
                     const scoresByName = {};
-
+                    
                     snapshot.forEach((docSnap) => {
                         const room = docSnap.data();
                         if (room.status !== 'finished') return;
-
+                        
                         Object.entries(room.players || {}).forEach(([uid, p]) => {
                             if (!p.isTeacher && !scoresByName[p.name]) {
                                 scoresByName[p.name] = { name: p.name, score: 0 };
@@ -424,51 +411,45 @@
                 }
             };
 
-            // 탭이 'records'로 바뀔 때만 데이터를 불러옴
             useEffect(() => {
                 if (isTeacherMenu && isPwdChecked && teacherTab === 'records') {
                     loadStudentRecords();
                 }
             }, [teacherTab, isTeacherMenu, isPwdChecked]);
 
-            // 개별 학생 기록 삭제
             const handleDeleteSingleStudent = async (studentName) => {
                 if(!confirm(`정말 '${studentName}' 학생의 모든 게임 기록을 삭제하시겠습니까?\n(명예의 전당 및 참가했던 방의 개인 기록이 모두 지워지며 복구할 수 없습니다)`)) return;
-
+                
                 try {
                     const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
                     const batchPromises = [];
-
+                    
                     snapshot.forEach((docSnap) => {
                         const data = docSnap.data();
                         let isModified = false;
                         const newPlayers = { ...data.players };
                         const newWords = { ...data.words };
-
+                        
                         const uidsToRemove = [];
                         Object.entries(newPlayers).forEach(([uid, p]) => {
                             if (p.name === studentName) {
                                 uidsToRemove.push(uid);
-                                delete newPlayers[uid]; // 플레이어 목록에서 제거
                                 delete newPlayers[uid];
                                 isModified = true;
                             }
                         });
-
+                        
                         if (isModified) {
-                            // 찾은 단어 목록에서도 해당 학생의 uid 제거
-                            // 지워진 학생이 찾은 단어 기록도 갱신
                             Object.entries(newWords).forEach(([word, finders]) => {
                                 newWords[word] = finders.filter(uid => !uidsToRemove.includes(uid));
                             });
                             batchPromises.push(updateDoc(docSnap.ref, { players: newPlayers, words: newWords }));
                         }
                     });
-
+                    
                     await Promise.all(batchPromises);
                     alert(`${studentName} 학생의 기록이 성공적으로 삭제되었습니다.`);
-                    loadStudentRecords(); // 목록 새로고침
-                    loadStudentRecords(); // 새로고침
+                    loadStudentRecords(); 
                 } catch(e) { 
                     alert('삭제 중 오류가 발생했습니다.'); 
                     console.error(e); 
@@ -493,10 +474,8 @@
                                 <h2 className="text-xl font-black text-slate-800 mb-2">교사 인증</h2>
                                 <p className="text-xs text-slate-500 mb-6">설정에 접근하려면 비밀번호를 입력하세요.</p>
                                 <input type="password" value={pwdInput} onChange={(e) => setPwdInput(e.target.value)}
-                                    onKeyDown={(e) => { if(e.key === 'Enter') { pwdInput === getTeacherPwd() ? setIsPwdChecked(true) : alert('비밀번호가 틀렸습니다.'); setPwdInput(''); } }}
                                     onKeyDown={(e) => { if(e.key === 'Enter') { pwdInput === dbTeacherPwd ? setIsPwdChecked(true) : alert('비밀번호가 틀렸습니다.'); setPwdInput(''); } }}
                                     placeholder="비밀번호" className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 mb-4 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner" />
-                                <button onClick={() => { pwdInput === getTeacherPwd() ? setIsPwdChecked(true) : alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }} 
                                 <button onClick={() => { pwdInput === dbTeacherPwd ? setIsPwdChecked(true) : alert('비밀번호가 틀렸습니다.'); setPwdInput(''); }} 
                                     className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-md">확인</button>
                             </div>
@@ -513,7 +492,6 @@
                                 <h2 className="text-2xl font-black text-slate-800">선생님 전용 설정</h2>
                             </div>
 
-                            {/* 교사 메뉴 탭 */}
                             <div className="flex w-full mb-6 bg-slate-100 p-1 rounded-lg">
                                 <button onClick={() => setTeacherTab('settings')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${teacherTab==='settings'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>기본 설정 / 방 생성</button>
                                 <button onClick={() => setTeacherTab('records')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${teacherTab==='records'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>개별 학생 기록 관리</button>
@@ -558,7 +536,6 @@
                                         </button>
                                     </div>
 
-                                    {/* 특정 학급 기록 삭제 */}
                                     <div className="pt-6 mt-4 border-t-2 border-slate-100">
                                         <label className="block text-sm font-bold text-red-600 mb-2">🚨 특정 학급 기록 묶어서 초기화</label>
                                         <div className="flex items-center space-x-2 bg-red-50 p-3 rounded-xl border border-red-100">
@@ -574,14 +551,10 @@
                                         </div>
                                     </div>
 
-                                    {/* 비밀번호 변경 */}
                                     <div className="pt-4 border-t border-slate-100">
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">교사 메뉴 비밀번호 변경</label>
                                         <label className="block text-sm font-bold text-slate-700 mb-2">교사 메뉴 비밀번호 변경 (DB에 저장됨)</label>
                                         <div className="flex items-center space-x-2">
                                             <input type="text" value={newPwdInput} onChange={(e) => setNewPwdInput(e.target.value)} placeholder="새 비밀번호 입력" className="flex-1 bg-slate-50 border border-slate-300 rounded-lg p-2 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
-                                            <button onClick={() => { if(!newPwdInput.trim()) return; localStorage.setItem('word_alchemist_teacher_pwd', newPwdInput.trim()); alert("변경되었습니다."); setNewPwdInput(''); }}
-                                                className="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm whitespace-nowrap hover:bg-slate-700 transition-colors">변경</button>
                                             <button onClick={handleChangePwd} className="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm whitespace-nowrap hover:bg-slate-700 transition-colors">변경</button>
                                         </div>
                                     </div>
@@ -598,7 +571,7 @@
                                             {Array.from({length:15},(_,i)=>i+1).map(c => <option key={c} value={c}>{c}반</option>)}
                                         </select>
                                     </div>
-
+                                    
                                     <div className="max-h-80 overflow-y-auto custom-scrollbar border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
                                         {recordLoading ? <div className="text-center p-4 text-xs font-bold text-slate-400 animate-pulse">학생 기록을 불러오는 중...</div> :
                                          filteredStudentRecords.length === 0 ? <div className="text-center p-4 text-xs font-bold text-slate-400">해당 조건의 기록이 없습니다.</div> :
@@ -704,7 +677,6 @@
             );
         }
 
-        // --- 하위 컴포넌트: 대기실 ---
         function WaitingRoomView({ roomData, user, appId }) {
             const isHost = roomData.hostId === user.uid;
             const players = Object.entries(roomData.players || {});
@@ -758,7 +730,6 @@
             );
         }
 
-        // --- 하위 컴포넌트: 게임 매니저 ---
         function GameManager({ roomData, user, appId }) {
             const [timeLeft, setTimeLeft] = useState(0);
 
@@ -780,7 +751,6 @@
             return <GamePlayView roomData={roomData} user={user} appId={appId} timeLeft={timeLeft} />;
         }
 
-        // --- 하위 컴포넌트: 실제 플레이 화면 ---
         function GamePlayView({ roomData, user, appId, timeLeft }) {
             const [selectedIndices, setSelectedIndices] = useState([]);
             const [localError, setLocalError] = useState('');
@@ -890,7 +860,6 @@
             );
         }
 
-        // --- 하위 컴포넌트: 결과 화면 ---
         function ResultView({ roomData, user }) {
             const { ranking, teamScores, wordDetails, totalWordsFound } = useMemo(() => {
                 const scores = {}; Object.keys(roomData.players || {}).forEach(uid => scores[uid] = 0);
@@ -917,44 +886,25 @@
                     <div className="text-center bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
                         <h2 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-fuchsia-600">{roomData.mode === 'single' ? '내 기록' : roomData.mode === '1v1' ? '대결 종료!' : roomData.mode === 'class' ? '순위표' : '팀 대결 종료!'}</h2>
                     </div>
-
+                    
                     {roomData.mode === 'team' ? (
                         <div className="flex w-full gap-2 md:gap-3 flex-shrink-0 h-48 sm:h-56">
-                            {/* 레드 팀 상세 결과 */}
                             <div className={`flex-1 flex flex-col p-2 sm:p-3 rounded-2xl border-2 shadow-sm ${teamScores.red >= teamScores.blue ? 'bg-red-50/80 border-red-400' : 'bg-white border-red-100'}`}>
-                                <div className="text-center border-b border-red-100 pb-1 mb-2 flex-shrink-0">
-                                    <h3 className="text-xs sm:text-sm font-bold text-red-600 mb-0.5">레드 팀</h3>
-                                    <p className="text-2xl sm:text-3xl font-black text-slate-800">{teamScores.red}</p>
-                                </div>
                                 <div className="text-center border-b border-red-100 pb-1 mb-2 flex-shrink-0"><h3 className="text-xs sm:text-sm font-bold text-red-600 mb-0.5">레드 팀</h3><p className="text-2xl sm:text-3xl font-black text-slate-800">{teamScores.red}</p></div>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
                                     {ranking.filter(p => p.team === 'red').map((player, idx) => (
                                         <div key={idx} className={`flex justify-between items-center p-1.5 rounded-lg border ${player.uid === user.uid ? 'bg-red-100 border-red-300 ring-1 ring-red-400' : 'bg-white border-red-100'}`}>
-                                            <span className={`font-bold text-[10px] sm:text-[11px] truncate mr-1 ${player.uid === user.uid ? 'text-red-900' : 'text-slate-700'}`}>{player.name}</span>
-                                            <span className="font-black text-xs sm:text-sm text-red-600">{player.score}</span>
                                             <span className={`font-bold text-[10px] sm:text-[11px] truncate mr-1 ${player.uid === user.uid ? 'text-red-900' : 'text-slate-700'}`}>{player.name}</span><span className="font-black text-xs sm:text-sm text-red-600">{player.score}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-                            
-                            <div className="flex flex-col justify-center items-center flex-shrink-0">
-                                <span className="text-xs sm:text-sm font-black text-slate-300">VS</span>
-                            </div>
-                            
-                            {/* 블루 팀 상세 결과 */}
                             <div className="flex flex-col justify-center items-center flex-shrink-0"><span className="text-xs sm:text-sm font-black text-slate-300">VS</span></div>
                             <div className={`flex-1 flex flex-col p-2 sm:p-3 rounded-2xl border-2 shadow-sm ${teamScores.blue >= teamScores.red ? 'bg-blue-50/80 border-blue-400' : 'bg-white border-blue-100'}`}>
-                                <div className="text-center border-b border-blue-100 pb-1 mb-2 flex-shrink-0">
-                                    <h3 className="text-xs sm:text-sm font-bold text-blue-600 mb-0.5">블루 팀</h3>
-                                    <p className="text-2xl sm:text-3xl font-black text-slate-800">{teamScores.blue}</p>
-                                </div>
                                 <div className="text-center border-b border-blue-100 pb-1 mb-2 flex-shrink-0"><h3 className="text-xs sm:text-sm font-bold text-blue-600 mb-0.5">블루 팀</h3><p className="text-2xl sm:text-3xl font-black text-slate-800">{teamScores.blue}</p></div>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
                                     {ranking.filter(p => p.team === 'blue').map((player, idx) => (
                                         <div key={idx} className={`flex justify-between items-center p-1.5 rounded-lg border ${player.uid === user.uid ? 'bg-blue-100 border-blue-300 ring-1 ring-blue-400' : 'bg-white border-blue-100'}`}>
-                                            <span className={`font-bold text-[10px] sm:text-[11px] truncate mr-1 ${player.uid === user.uid ? 'text-blue-900' : 'text-slate-700'}`}>{player.name}</span>
-                                            <span className="font-black text-xs sm:text-sm text-blue-600">{player.score}</span>
                                             <span className={`font-bold text-[10px] sm:text-[11px] truncate mr-1 ${player.uid === user.uid ? 'text-blue-900' : 'text-slate-700'}`}>{player.name}</span><span className="font-black text-xs sm:text-sm text-blue-600">{player.score}</span>
                                         </div>
                                     ))}
@@ -968,10 +918,6 @@
                                 <div className="space-y-1.5 overflow-y-auto custom-scrollbar flex-1 pr-1">
                                     {ranking.map((player, idx) => (
                                         <div key={idx} className={`flex justify-between items-center p-2 rounded-xl border ${idx===0?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200'} ${player.uid===user.uid?'ring-1 ring-fuchsia-400 bg-fuchsia-50/30':''}`}>
-                                            <div className="flex items-center">
-                                                <span className={`w-5 font-black text-xs text-center ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span>
-                                                <span className={`font-bold text-[11px] sm:text-xs ${player.uid===user.uid?'text-indigo-900':'text-slate-700'}`}>{player.name}</span>
-                                            </div>
                                             <div className="flex items-center"><span className={`w-5 font-black text-xs text-center ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span><span className={`font-bold text-[11px] sm:text-xs ${player.uid===user.uid?'text-indigo-900':'text-slate-700'}`}>{player.name}</span></div>
                                             <div className={`font-black text-sm ${idx===0?'text-amber-600':'text-slate-700'}`}>{player.score}</div>
                                         </div>
@@ -1002,15 +948,28 @@
             );
         }
 
-        // --- 하위 컴포넌트: 명예의 전당 ---
         function HallOfFameView({ onBack, db, appId }) {
             const [loading, setLoading] = useState(true);
             const [allData, setAllData] = useState({ leaderboard: [], teamBattles: [], classBattles: [] });
             const [activeTab, setActiveTab] = useState('ranking');
-            
-            // 필터링 상태 추가
             const [filterGrade, setFilterGrade] = useState('');
             const [filterClass, setFilterClass] = useState('');
+
+            const maskFullName = (name) => {
+                if (!name) return '';
+                if (name.includes('선생님')) return name;
+                const parts = name.split(' ');
+                if (parts.length >= 4) return parts.slice(0, 3).join(' ') + ' ***';
+                return '***';
+            };
+
+            const maskShortName = (name) => {
+                if (!name) return '';
+                if (name.includes('선생님')) return name;
+                const parts = name.split(' ');
+                if (parts.length >= 4) return parts[2] + ' ***'; 
+                return '***';
+            };
 
             useEffect(() => {
                 const fetchData = async () => {
@@ -1018,12 +977,8 @@
                     try {
                         const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION));
                         const allRooms = snapshot.docs.map(d => d.data()).filter(r => r.status === 'finished');
-                        const scoresByName = {}; 
-                        const tBattles = [];
-                        const cBattles = [];
                         const scoresByName = {}; const tBattles = []; const cBattles = [];
 
-                        // 해당 방의 학년/반을 판별하기 위한 대표자(학생) 이름 찾기 함수
                         const getRepName = (room) => {
                             const host = room.players?.[room.hostId];
                             if (host && !host.isTeacher) return host.name;
@@ -1032,14 +987,8 @@
                         };
 
                         allRooms.forEach(room => {
-                            let roomRed = 0, roomBlue = 0;
-                            let currentRoomPlayers = {};
-                            
                             let roomRed = 0, roomBlue = 0; let currentRoomPlayers = {};
                             Object.entries(room.players || {}).forEach(([uid, p]) => {
-                                if (!p.isTeacher) {
-                                    currentRoomPlayers[uid] = { name: p.name, team: p.team, score: 0 };
-                                }
                                 if (!p.isTeacher) currentRoomPlayers[uid] = { name: p.name, team: p.team, score: 0 };
                             });
 
@@ -1048,197 +997,54 @@
                                 let bScore = getLengthBonus(word.length) + word.split('').reduce((a,c)=>a+(LETTER_SCORES[c]||0),0);
                                 const isEx = room.mode !== 'single' && finders.length === 1;
                                 const fScore = isEx ? (bScore * 2 + 5) : bScore;
-
                                 finders.forEach(uid => {
                                     const p = room.players[uid];
                                     if (p && !p.isTeacher) {
                                         if (!scoresByName[p.name]) scoresByName[p.name] = { name: p.name, score: 0 };
                                         scoresByName[p.name].score += fScore;
-                                        
                                         if (currentRoomPlayers[uid]) currentRoomPlayers[uid].score += fScore;
-
-                                        if (room.mode === 'team') { 
-                                            p.team === 'red' ? roomRed += fScore : roomBlue += fScore; 
-                                        }
                                         if (room.mode === 'team') p.team === 'red' ? roomRed += fScore : roomBlue += fScore; 
                                     }
                                 });
                             });
 
                             const repName = getRepName(room);
-
                             if (room.mode === 'team') {
                                 const redPlayers = Object.values(currentRoomPlayers).filter(p => p.team === 'red').sort((a,b)=>b.score-a.score);
                                 const bluePlayers = Object.values(currentRoomPlayers).filter(p => p.team === 'blue').sort((a,b)=>b.score-a.score);
-                                tBattles.push({ 
-                                    hostName: room.players[room.hostId]?.name||'알수없음', 
-                                    repName: repName,
-                                    redScore: roomRed, 
-                                    blueScore: roomBlue, 
-                                    redPlayers,
-                                    bluePlayers,
-                                    date: room.endTime||Date.now() 
-                                });
                                 tBattles.push({ hostName: room.players[room.hostId]?.name||'알수없음', repName: repName, redScore: roomRed, blueScore: roomBlue, redPlayers, bluePlayers, date: room.endTime||Date.now() });
                             } else if (room.mode === 'class') {
                                 const sortedPlayers = Object.values(currentRoomPlayers).sort((a,b)=>b.score-a.score);
-                                cBattles.push({
-                                    hostName: room.players[room.hostId]?.name||'알수없음',
-                                    repName: repName,
-                                    players: sortedPlayers,
-                                    date: room.endTime||Date.now()
-                                });
                                 cBattles.push({ hostName: room.players[room.hostId]?.name||'알수없음', repName: repName, players: sortedPlayers, date: room.endTime||Date.now() });
                             }
                         });
-
-                        setAllData({
-                            leaderboard: Object.values(scoresByName).sort((a, b) => b.score - a.score),
-                            teamBattles: tBattles.sort((a, b) => b.date - a.date),
-                            classBattles: cBattles.sort((a, b) => b.date - a.date)
-                        });
-                    } catch (err) {
-                        console.error(err);
-                    } finally { 
-                        setLoading(false); 
-                    }
+                        
                         setAllData({ leaderboard: Object.values(scoresByName).sort((a, b) => b.score - a.score), teamBattles: tBattles.sort((a, b) => b.date - a.date), classBattles: cBattles.sort((a, b) => b.date - a.date) });
                     } catch (err) { console.error(err); } finally { setLoading(false); }
                 };
                 fetchData();
             }, [db, appId]);
 
-            // 필터링 적용 (useMemo로 최적화)
             const { leaderboard, teamBattles, classBattles } = useMemo(() => {
                 const isMatch = (name) => {
                     if (!name) return false;
-                    // 1반과 11반 구분을 위해 띄어쓰기 포함하여 검사
                     const matchG = filterGrade === '' || name.includes(`${filterGrade}학년 `);
                     const matchC = filterClass === '' || name.includes(` ${filterClass}반 `);
                     return matchG && matchC;
-                };
-
-                return {
-                    leaderboard: allData.leaderboard.filter(p => isMatch(p.name)),
-                    teamBattles: allData.teamBattles.filter(b => isMatch(b.repName)),
-                    classBattles: allData.classBattles.filter(b => isMatch(b.repName))
                 };
                 return { leaderboard: allData.leaderboard.filter(p => isMatch(p.name)), teamBattles: allData.teamBattles.filter(b => isMatch(b.repName)), classBattles: allData.classBattles.filter(b => isMatch(b.repName)) };
             }, [allData, filterGrade, filterClass]);
 
             return (
                 <div className="flex flex-col h-full w-full max-w-3xl mx-auto px-2 pb-2">
-                    <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                        <h2 className="text-xl font-black flex items-center text-slate-800"><Trophy className="w-5 h-5 mr-1 text-amber-500" /> 명예의 전당</h2>
-                        <button onClick={onBack} className="text-xs bg-white border px-3 py-1.5 rounded-full font-bold shadow-sm hover:bg-slate-50 transition-colors">✕ 닫기</button>
-                    </div>
-                    
-                    {/* 탭 메뉴 */}
-                    <div className="flex w-full mb-3 bg-slate-100 p-1 rounded-lg flex-shrink-0">
-                        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='ranking'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>개인 누적 랭킹</button>
-                        <button onClick={() => setActiveTab('class')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='class'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>학급 개인전 기록</button>
-                        <button onClick={() => setActiveTab('team')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='team'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>팀 대결 기록</button>
-                    </div>
-
-                    {/* 필터링 드롭다운 */}
-                    <div className="flex space-x-2 mb-3 flex-shrink-0">
-                        <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
-                            <option value="">모든 학년</option>
-                            {[1,2,3,4,5,6].map(g => <option key={g} value={g}>{g}학년</option>)}
-                        </select>
-                        <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
-                            <option value="">모든 반</option>
-                            {Array.from({length:15},(_,i)=>i+1).map(c => <option key={c} value={c}>{c}반</option>)}
-                        </select>
-                    </div>
-                    
                     <div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-black flex items-center text-slate-800"><Trophy className="w-5 h-5 mr-1 text-amber-500" /> 명예의 전당</h2><button onClick={onBack} className="text-xs bg-white border px-3 py-1.5 rounded-full font-bold shadow-sm hover:bg-slate-50 transition-colors">✕ 닫기</button></div>
                     <div className="flex w-full mb-3 bg-slate-100 p-1 rounded-lg flex-shrink-0"><button onClick={() => setActiveTab('ranking')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='ranking'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>개인 누적 랭킹</button><button onClick={() => setActiveTab('class')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='class'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>학급 개인전</button><button onClick={() => setActiveTab('team')} className={`flex-1 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all ${activeTab==='team'?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>팀 대결</button></div>
                     <div className="flex space-x-2 mb-3 flex-shrink-0"><select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"><option value="">모든 학년</option>{[1,2,3,4,5,6].map(g => <option key={g} value={g}>{g}학년</option>)}</select><select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"><option value="">모든 반</option>{Array.from({length:15},(_,i)=>i+1).map(c => <option key={c} value={c}>{c}반</option>)}</select></div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
-                        {loading ? <div className="text-center text-xs text-slate-400 mt-10 animate-pulse">마법진 기록을 불러오는 중...</div> : 
-                            activeTab === 'ranking' ? (
-                                leaderboard.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">해당 조건의 기록이 없습니다.</div> :
-                                leaderboard.map((p, idx) => (
-                                    <div key={idx} className={`flex items-center justify-between p-3 border-b border-slate-100 last:border-0 ${idx<3?'bg-amber-50/30 rounded-lg':''}`}>
-                                        <div className="flex items-center"><span className={`w-6 font-black text-center text-sm ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span><span className="text-xs font-bold text-slate-700 ml-2">{p.name}</span></div>
-                                        <div className="font-black text-sm text-slate-800">{p.score} <span className="text-[10px] font-normal text-slate-500">점</span></div>
-                                    </div>
-                                ))
-                            ) : activeTab === 'class' ? (
-                                classBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">해당 조건의 학급 개인전 기록이 없습니다.</div> :
-                                classBattles.map((b, idx) => (
-                                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm">
-                                        <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center">
-                                            <span>{new Date(b.date).toLocaleString()}</span>
-                                            <span className="font-bold">방장: {b.hostName}</span>
-                                        </div>
-                                        <div className="space-y-1 mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                                            {b.players.map((p, i) => (
-                                                <div key={i} className="flex justify-between items-center text-xs bg-white p-2 border border-slate-100 rounded-lg">
-                                                    <div className="flex items-center">
-                                                        <span className={`w-5 text-[10px] font-black ${i<3 ? 'text-amber-500' : 'text-slate-400'}`}>{i+1}</span>
-                                                        <span className="text-slate-700 font-bold truncate ml-1">{p.name.split(' ').slice(-2).join(' ')}</span>
-                                                    </div>
-                                                    <span className="font-black text-indigo-600">{p.score} 점</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                teamBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">해당 조건의 팀 대결 기록이 없습니다.</div> :
-                                teamBattles.map((b, idx) => (
-                                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm">
-                                        <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center">
-                                            <span>{new Date(b.date).toLocaleString()}</span>
-                                            <span className="font-bold">방장: {b.hostName}</span>
-                                        </div>
-                                        <div className="flex justify-between items-stretch gap-2 mt-2">
-                                            {/* 레드 팀 */}
-                                            <div className="flex-1 bg-white border border-red-100 rounded-lg p-2 flex flex-col">
-                                                <div className="text-center mb-1 border-b border-red-50 pb-1">
-                                                    <div className="text-[10px] font-bold text-red-500 mb-0.5">레드 팀</div>
-                                                    <div className="text-base font-black text-slate-800">{b.redScore}</div>
-                                                </div>
-                                                <div className="flex-1 space-y-1 mt-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                                                    {b.redPlayers.map((p, i) => (
-                                                        <div key={i} className="flex justify-between items-center text-[10px] bg-red-50/50 p-1.5 border border-red-50 rounded">
-                                                            <span className="text-slate-700 truncate font-medium mr-1">{p.name.split(' ').slice(-2).join(' ')}</span>
-                                                            <span className="font-bold text-red-600">{p.score}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* VS */}
-                                            <div className="flex flex-col justify-center items-center px-1">
-                                                <span className="text-[10px] font-black text-slate-300">VS</span>
-                                            </div>
-
-                                            {/* 블루 팀 */}
-                                            <div className="flex-1 bg-white border border-blue-100 rounded-lg p-2 flex flex-col">
-                                                <div className="text-center mb-1 border-b border-blue-50 pb-1">
-                                                    <div className="text-[10px] font-bold text-blue-500 mb-0.5">블루 팀</div>
-                                                    <div className="text-base font-black text-slate-800">{b.blueScore}</div>
-                                                </div>
-                                                <div className="flex-1 space-y-1 mt-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                                                    {b.bluePlayers.map((p, i) => (
-                                                        <div key={i} className="flex justify-between items-center text-[10px] bg-blue-50/50 p-1.5 border border-blue-50 rounded">
-                                                            <span className="text-slate-700 truncate font-medium mr-1">{p.name.split(' ').slice(-2).join(' ')}</span>
-                                                            <span className="font-bold text-blue-600">{p.score}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )
                         {loading ? <div className="text-center text-xs text-slate-400 mt-10 animate-pulse">불러오는 중...</div> : 
-                            activeTab === 'ranking' ? (leaderboard.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> : leaderboard.map((p, idx) => <div key={idx} className={`flex items-center justify-between p-3 border-b border-slate-100 last:border-0 ${idx<3?'bg-amber-50/30 rounded-lg':''}`}><div className="flex items-center"><span className={`w-6 font-black text-center text-sm ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span><span className="text-xs font-bold text-slate-700 ml-2">{p.name}</span></div><div className="font-black text-sm text-slate-800">{p.score} <span className="text-[10px] font-normal text-slate-500">점</span></div></div>))
-                            : activeTab === 'class' ? (classBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> : classBattles.map((b, idx) => <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm"><div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center"><span>{new Date(b.date).toLocaleString()}</span><span className="font-bold">방장: {b.hostName}</span></div><div className="space-y-1 mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">{b.players.map((p, i) => <div key={i} className="flex justify-between items-center text-xs bg-white p-2 border border-slate-100 rounded-lg"><div className="flex items-center"><span className={`w-5 text-[10px] font-black ${i<3 ? 'text-amber-500' : 'text-slate-400'}`}>{i+1}</span><span className="text-slate-700 font-bold truncate ml-1">{p.name.split(' ').slice(-2).join(' ')}</span></div><span className="font-black text-indigo-600">{p.score} 점</span></div>)}</div></div>))
-                            : (teamBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> : teamBattles.map((b, idx) => <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm"><div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center"><span>{new Date(b.date).toLocaleString()}</span><span className="font-bold">방장: {b.hostName}</span></div><div className="flex justify-between items-stretch gap-2 mt-2"><div className="flex-1 bg-white border border-red-100 rounded-lg p-2 flex flex-col"><div className="text-center mb-1 border-b border-red-50 pb-1"><div className="text-[10px] font-bold text-red-500 mb-0.5">레드 팀</div><div className="text-base font-black text-slate-800">{b.redScore}</div></div><div className="flex-1 space-y-1 mt-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">{b.redPlayers.map((p, i) => <div key={i} className="flex justify-between items-center text-[10px] bg-red-50/50 p-1.5 border border-red-50 rounded"><span className="text-slate-700 truncate font-medium mr-1">{p.name.split(' ').slice(-2).join(' ')}</span><span className="font-bold text-red-600">{p.score}</span></div>)}</div></div><div className="flex flex-col justify-center items-center px-1"><span className="text-[10px] font-black text-slate-300">VS</span></div><div className="flex-1 bg-white border border-blue-100 rounded-lg p-2 flex flex-col"><div className="text-center mb-1 border-b border-blue-50 pb-1"><div className="text-[10px] font-bold text-blue-500 mb-0.5">블루 팀</div><div className="text-base font-black text-slate-800">{b.blueScore}</div></div><div className="flex-1 space-y-1 mt-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">{b.bluePlayers.map((p, i) => <div key={i} className="flex justify-between items-center text-[10px] bg-blue-50/50 p-1.5 border border-blue-50 rounded"><span className="text-slate-700 truncate font-medium mr-1">{p.name.split(' ').slice(-2).join(' ')}</span><span className="font-bold text-blue-600">{p.score}</span></div>)}</div></div></div></div>))
+                            activeTab === 'ranking' ? (leaderboard.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> : leaderboard.map((p, idx) => <div key={idx} className={`flex items-center justify-between p-3 border-b border-slate-100 last:border-0 ${idx<3?'bg-amber-50/30 rounded-lg':''}`}><div className="flex items-center"><span className={`w-6 font-black text-center text-sm ${idx<3?'text-amber-500':'text-slate-400'}`}>{idx+1}</span><span className="text-xs font-bold text-slate-700 ml-2">{maskFullName(p.name)}</span></div><div className="font-black text-sm text-slate-800">{p.score} <span className="text-[10px] font-normal text-slate-500">점</span></div></div>))
+                            : activeTab === 'class' ? (classBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> : classBattles.map((b, idx) => <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm"><div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center"><span>{new Date(b.date).toLocaleString()}</span><span className="font-bold">방장: {maskFullName(b.hostName)}</span></div><div className="space-y-1 mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">{b.players.map((p, i) => <div key={i} className="flex justify-between items-center text-xs bg-white p-2 border border-slate-100 rounded-lg"><div className="flex items-center"><span className={`w-5 text-[10px] font-black ${i<3 ? 'text-amber-500' : 'text-slate-400'}`}>{i+1}</span><span className="text-slate-700 font-bold truncate ml-1">{maskShortName(p.name)}</span></div><span className="font-black text-indigo-600">{p.score} 점</span></div>)}</div></div>))
+                            : (teamBattles.length === 0 ? <div className="text-center text-xs text-slate-400 mt-10">기록이 없습니다.</div> : teamBattles.map((b, idx) => <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 shadow-sm"><div className="text-[10px] text-slate-400 mb-2 border-b border-slate-200 pb-1.5 flex justify-between items-center"><span>{new Date(b.date).toLocaleString()}</span><span className="font-bold">방장: {maskFullName(b.hostName)}</span></div><div className="flex justify-between items-stretch gap-2 mt-2"><div className="flex-1 bg-white border border-red-100 rounded-lg p-2 flex flex-col"><div className="text-center mb-1 border-b border-red-50 pb-1"><div className="text-[10px] font-bold text-red-500 mb-0.5">레드 팀</div><div className="text-base font-black text-slate-800">{b.redScore}</div></div><div className="flex-1 space-y-1 mt-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">{b.redPlayers.map((p, i) => <div key={i} className="flex justify-between items-center text-[10px] bg-red-50/50 p-1.5 border border-red-50 rounded"><span className="text-slate-700 truncate font-medium mr-1">{maskShortName(p.name)}</span><span className="font-bold text-red-600">{p.score}</span></div>)}</div></div><div className="flex flex-col justify-center items-center px-1"><span className="text-[10px] font-black text-slate-300">VS</span></div><div className="flex-1 bg-white border border-blue-100 rounded-lg p-2 flex flex-col"><div className="text-center mb-1 border-b border-blue-50 pb-1"><div className="text-[10px] font-bold text-blue-500 mb-0.5">블루 팀</div><div className="text-base font-black text-slate-800">{b.blueScore}</div></div><div className="flex-1 space-y-1 mt-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">{b.bluePlayers.map((p, i) => <div key={i} className="flex justify-between items-center text-[10px] bg-blue-50/50 p-1.5 border border-blue-50 rounded"><span className="text-slate-700 truncate font-medium mr-1">{maskShortName(p.name)}</span><span className="font-bold text-blue-600">{p.score}</span></div>)}</div></div></div></div>))
                         }
                     </div>
                 </div>
