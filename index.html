@@ -14,6 +14,15 @@
     
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Babel Classic Runtime 강제 설정 (에러 해결) -->
+    <script>
+        if (typeof Babel !== 'undefined') {
+            Babel.registerPreset('react-classic', {
+                presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
+            });
+        }
+    </script>
 
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
@@ -26,10 +35,8 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        /** @jsx React.createElement */
-        /** @jsxFrag React.Fragment */
-        
+    <!-- 설정한 react-classic 프리셋을 적용 -->
+    <script type="text/babel" data-type="module" data-presets="react-classic">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
