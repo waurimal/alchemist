@@ -35,7 +35,6 @@
 <body>
     <div id="root"></div>
 
-    <!-- 설정한 react-classic 프리셋을 적용 -->
     <script type="text/babel" data-type="module" data-presets="react-classic">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -43,6 +42,7 @@
 
         const { useState, useEffect, useMemo, useCallback } = React;
 
+        // Firebase 초기화
         let firebaseConfig = {};
         if (typeof __firebase_config !== 'undefined') {
             firebaseConfig = JSON.parse(__firebase_config);
@@ -64,6 +64,7 @@
         const ROOMS_COLLECTION = 'word_alchemist_rooms';
         const SETTINGS_COLLECTION = 'word_alchemist_settings'; 
 
+        // 아이콘 모음
         const Icon = ({ path, className, style }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} dangerouslySetInnerHTML={{ __html: path }} />
         );
@@ -82,6 +83,7 @@
         const Trophy = (p) => <Icon {...p} path='<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>' />;
         const Settings = (p) => <Icon {...p} path='<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>' />;
 
+        // 게임 설정값
         const LETTER_SCORES = { A:1, E:1, I:1, O:1, U:1, L:1, N:1, S:1, T:1, R:1, D:2, G:2, B:3, C:3, M:3, P:3, F:4, H:4, V:4, W:4, Y:4, K:5, J:8, X:8, Q:10, Z:10 };
         const PROFANITY_LIST = ["시발", "씨발", "병신", "새끼", "지랄", "존나", "섹스", "느금", "애미", "애비", "개새", "FUCK", "SHIT", "BITCH", "CUNT", "DICK", "ASS", "SEX", "PORN", "SLUT"];
         
@@ -104,10 +106,11 @@
         const generateRoomCode = () => Math.floor(1000 + Math.random() * 9000).toString();
         const containsProfanity = (text) => PROFANITY_LIST.some(badWord => text.toUpperCase().includes(badWord));
         
-        // 초/중등 필수 영단어 등 확장된 내장 사전 (쉼표로 구분된 문자열을 분할하여 Set 구성 - 메모리 효율화)
+        // 내장 공용 사전 (기본 1000단어 + DB 누적 단어)
         const commonWordsString = "THE,BE,TO,OF,AND,A,IN,THAT,HAVE,I,IT,FOR,NOT,ON,WITH,HE,AS,YOU,DO,AT,THIS,BUT,HIS,BY,FROM,THEY,WE,SAY,HER,SHE,OR,AN,WILL,MY,ONE,ALL,WOULD,THERE,THEIR,WHAT,SO,UP,OUT,IF,ABOUT,WHO,GET,WHICH,GO,ME,WHEN,MAKE,CAN,LIKE,TIME,NO,JUST,HIM,KNOW,TAKE,PEOPLE,INTO,YEAR,YOUR,GOOD,SOME,COULD,THEM,SEE,OTHER,THAN,THEN,NOW,LOOK,ONLY,COME,ITS,OVER,THINK,ALSO,BACK,AFTER,USE,TWO,HOW,OUR,WORK,FIRST,WELL,WAY,EVEN,NEW,WANT,BECAUSE,ANY,THESE,GIVE,DAY,MOST,US,NET,APPLE,BANANA,CAT,DOG,CAR,RED,BLUE,GREEN,TREE,BOOK,WATER,FIRE,EARTH,AIR,SUN,MOON,STAR,BOY,GIRL,MAN,WOMAN,HOUSE,SCHOOL,FRIEND,LOVE,HAPPY,SAD,RUN,WALK,JUMP,SWIM,FLY,EAT,DRINK,SLEEP,WAKE,BIG,SMALL,HOT,COLD,FAST,SLOW,OLD,YOUNG,LONG,SHORT,HIGH,LOW,HARD,SOFT,EASY,BEAUTIFUL,UGLY,CLEAN,DIRTY,FULL,EMPTY,OPEN,CLOSE,START,STOP,BEGIN,END,UP,DOWN,LEFT,RIGHT,FRONT,BACK,TOP,BOTTOM,INSIDE,OUTSIDE,HERE,THERE,WHERE,WHEN,WHY,HOW,WHAT,WHICH,WHO,WHOSE,MANY,MUCH,FEW,LITTLE,MORE,LESS,MOST,LEAST,ALL,NONE,SOME,ANY,EVERY,EACH,BOTH,NEITHER,EITHER,YES,NO,NOT,ALWAYS,NEVER,OFTEN,SOMETIMES,USUALLY,RARELY,TODAY,TOMORROW,YESTERDAY,NOW,THEN,SOON,LATER,EARLY,LATE,BEFORE,AFTER,DURING,WHILE,UNTIL,SINCE,FOR,FROM,TO,AT,IN,ON,BY,WITH,ABOUT,AGAINST,BETWEEN,AMONG,THROUGH,OVER,UNDER,ABOVE,BELOW,BEHIND,INFRONT,BESIDE,NEAR,FAR,PAST,PRESENT,FUTURE,MORNING,AFTERNOON,EVENING,NIGHT,DAY,WEEK,MONTH,YEAR,SPRING,SUMMER,AUTUMN,WINTER,MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY,JANUARY,FEBRUARY,MARCH,APRIL,MAY,JUNE,JULY,AUGUST,SEPTEMBER,OCTOBER,NOVEMBER,DECEMBER,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN,EIGHT,NINE,TEN,ELEVEN,TWELVE,TWENTY,THIRTY,FORTY,FIFTY,SIXTY,SEVENTY,EIGHTY,NINETY,HUNDRED,THOUSAND,MILLION,COLOR,RED,BLUE,YELLOW,GREEN,ORANGE,PURPLE,BROWN,BLACK,WHITE,GRAY,ANIMAL,CAT,DOG,BIRD,FISH,MOUSE,COW,PIG,HORSE,SHEEP,LION,TIGER,BEAR,ELEPHANT,MONKEY,FOOD,WATER,MILK,JUICE,TEA,COFFEE,BREAD,MEAT,RICE,NOODLE,APPLE,BANANA,ORANGE,GRAPE,BODY,HEAD,HAIR,EYE,EAR,NOSE,MOUTH,TOOTH,FACE,NECK,SHOULDER,ARM,HAND,FINGER,LEG,FOOT,TOE,HEART,STOMACH,BACK,FAMILY,FATHER,MOTHER,PARENT,SON,DAUGHTER,CHILD,BROTHER,SISTER,GRANDFATHER,GRANDMOTHER,UNCLE,AUNT,COUSIN,HOUSE,ROOM,DOOR,WINDOW,WALL,FLOOR,CEILING,ROOF,BED,CHAIR,TABLE,DESK,SOFA,TV,COMPUTER,PHONE,BOOK,PEN,PENCIL,PAPER,BAG,CLOTHES,SHIRT,PANTS,DRESS,SKIRT,SHOE,SOCK,HAT,COAT,JACKET,CITY,STREET,ROAD,PARK,SCHOOL,HOSPITAL,BANK,STORE,SHOP,RESTAURANT,STATION,AIRPORT,CAR,BUS,TRAIN,SUBWAY,AIRPLANE,SHIP,BOAT,BICYCLE,JOB,TEACHER,STUDENT,DOCTOR,NURSE,POLICE,FIREMAN,DRIVER,FARMER,WORKER,SINGER,ACTOR,ARTIST,IDEA,PROBLEM,WAY,THING,WORLD,LIFE,HAND,PART,CHILD,EYE,WOMAN,PLACE,WORK,WEEK,CASE,POINT,GOVERNMENT,COMPANY,NUMBER,GROUP,FACT,IDEA,WATER,MONEY,MONTH,LOT,BOOK,EYE,JOB,WORD,BUSINESS,ISSUE,SIDE,KIND,HEAD,HOUSE,SERVICE,FRIEND,FATHER,POWER,HOUR,GAME,LINE,END,MEMBER,LAW,CAR,CITY,COMMUNITY,NAME,PRESIDENT,TEAM,MINUTE,IDEA,KID,BODY,INFORMATION,BACK,PARENT,FACE,OTHERS,LEVEL,OFFICE,DOOR,HEALTH,PERSON,ART,WAR,HISTORY,PARTY,RESULT,CHANGE,MORNING,REASON,RESEARCH,GIRL,GUY,MOM,MOMENT,AIR,TEACHER,FORCE,EDUCATION";
         const COMMON_WORDS_DB = new Set(commonWordsString.split(','));
 
+        // --- 메인 앱 컴포넌트 ---
         function WordAlchemistApp() {
             const [user, setUser] = useState(null);
             const [roomId, setRoomId] = useState('');
@@ -119,6 +122,7 @@
             const [userInfo, setUserInfo] = useState({ grade: '', classNum: '', studentNum: '', name: '' });
             const [selectedMode, setSelectedMode] = useState(null); 
 
+            // 사용자 로그인 처리
             useEffect(() => {
                 const initAuth = async () => {
                     try {
@@ -137,6 +141,25 @@
                 return () => unsubscribe();
             }, []);
 
+            // [핵심] 로그인 성공 시 Firebase 공용 단어장을 불러와 내장 사전에 병합
+            useEffect(() => {
+                if (!user) return;
+                const loadGlobalDictionary = async () => {
+                    try {
+                        const dictRef = doc(db, 'artifacts', appId, 'public', 'data', SETTINGS_COLLECTION, 'global_dictionary');
+                        const snap = await getDoc(dictRef);
+                        if (snap.exists() && snap.data().words) {
+                            snap.data().words.forEach(w => COMMON_WORDS_DB.add(w));
+                            console.log(`[사전 연동 완료] 총 ${COMMON_WORDS_DB.size}개의 영단어 메모리 탑재`);
+                        }
+                    } catch (e) {
+                        console.error("공용 사전 로딩 실패:", e);
+                    }
+                };
+                loadGlobalDictionary();
+            }, [user]);
+
+            // 방 데이터 실시간 수신
             useEffect(() => {
                 if (!user || !roomId || isJoining) return;
 
@@ -313,6 +336,7 @@
             );
         }
 
+        // --- 하위 컴포넌트: 로비 (학적 입력 및 교사 메뉴) ---
         function LobbyView({ userInfo, setUserInfo, selectedMode, setSelectedMode, onCreateRoom, onJoinRoom, db, appId }) {
             const [joinCode, setJoinCode] = useState('');
             const [isTeacherMenu, setIsTeacherMenu] = useState(false);
@@ -475,6 +499,7 @@
                 });
             }, [studentRecords, filterRecGrade, filterRecClass]);
 
+            // 선생님 설정 모드 화면
             if (isTeacherMenu) {
                 if (!isPwdChecked) {
                     return (
@@ -688,6 +713,7 @@
             );
         }
 
+        // --- 하위 컴포넌트: 대기실 ---
         function WaitingRoomView({ roomData, user, appId }) {
             const isHost = roomData.hostId === user.uid;
             const players = Object.entries(roomData.players || {});
@@ -741,6 +767,7 @@
             );
         }
 
+        // --- 하위 컴포넌트: 게임 매니저 (타이머) ---
         function GameManager({ roomData, user, appId }) {
             const [timeLeft, setTimeLeft] = useState(0);
 
@@ -762,6 +789,7 @@
             return <GamePlayView roomData={roomData} user={user} appId={appId} timeLeft={timeLeft} />;
         }
 
+        // --- 하위 컴포넌트: 실제 플레이 화면 ---
         function GamePlayView({ roomData, user, appId, timeLeft }) {
             const [selectedIndices, setSelectedIndices] = useState([]);
             const [localError, setLocalError] = useState('');
@@ -793,53 +821,39 @@
                 let isValidWord = false;
                 let fetchedMeaning = roomData.meanings?.[cleanWord] || "";
 
-                // 1. 이미 누군가 연성한 단어거나 내장 DB에 있는 경우 초고속 통과
-                if (fetchedMeaning || (roomData.words && roomData.words[cleanWord]) || COMMON_WORDS_DB.has(cleanWord)) {
-                    isValidWord = true;
-                } else {
-                    // 2. 내장 DB에 없으면 외부 API 조회
-                    setLocalError("사전 검색 중... 🔍");
+                if (fetchedMeaning || (roomData.words && roomData.words[cleanWord])) isValidWord = true;
+                else {
+                    setLocalError("검색 중... 🔍");
                     try {
-                        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
-                        if (res.ok) { isValidWord = true; COMMON_WORDS_DB.add(cleanWord); }
-                    } catch (err) {
-                        // 외부 API가 완전히 뻗은 상태라면, 안전을 위해 내장 DB 통과된 것만 인정
-                        isValidWord = COMMON_WORDS_DB.has(cleanWord); 
-                    }
+                        if (COMMON_WORDS_DB.has(cleanWord)) {
+                            isValidWord = true;
+                        } else {
+                            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`);
+                            if (res.ok) { 
+                                isValidWord = true; 
+                                COMMON_WORDS_DB.add(cleanWord); 
+                                // ✅ 외부 API를 통과한 "새로운 단어"는 Firebase 공용 사전에 영구 저장!
+                                const dictRef = doc(db, 'artifacts', appId, 'public', 'data', SETTINGS_COLLECTION, 'global_dictionary');
+                                updateDoc(dictRef, { words: arrayUnion(cleanWord) }).catch(() => {
+                                    setDoc(dictRef, { words: [cleanWord] }, { merge: true });
+                                });
+                            }
+                        }
+                        if (isValidWord && !fetchedMeaning) {
+                            const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${cleanWord}`);
+                            if (transRes.ok) { const transData = await transRes.json(); fetchedMeaning = transData[0][0][0]; }
+                        }
+                    } catch (err) { isValidWord = COMMON_WORDS_DB.has(cleanWord); }
                 }
 
-                if (!isValidWord) { 
-                    setLocalError("없는 단어입니다! ❌"); 
-                    setTimeout(()=>setLocalError(''), 1500); 
-                    setIsChecking(false); 
-                    return; 
-                }
+                if (!isValidWord) { setLocalError("없는 단어입니다! ❌"); setTimeout(()=>setLocalError(''), 1500); setIsChecking(false); return; }
 
-                // 3. 단어 승인! Firebase 업데이트 먼저 진행 (UI 딜레이 방지)
                 try {
                     const updatePayload = { [`words.${cleanWord}`]: arrayUnion(user.uid) };
+                    if (fetchedMeaning && !roomData.meanings?.[cleanWord]) updatePayload[`meanings.${cleanWord}`] = fetchedMeaning;
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId), updatePayload);
-                    setSelectedIndices([]); 
-                    setLocalError('');
-                } catch (err) {
-                    console.error(err);
-                } finally { 
-                    setIsChecking(false); 
-                }
-
-                // 4. (백그라운드) 번역 뜻이 없다면 구글 번역 API 호출 후 조용히 업데이트
-                if (isValidWord && !fetchedMeaning) {
-                    try {
-                        const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${cleanWord}`);
-                        if (transRes.ok) { 
-                            const transData = await transRes.json(); 
-                            fetchedMeaning = transData[0][0][0]; 
-                            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', ROOMS_COLLECTION, roomData.roomId), {
-                                [`meanings.${cleanWord}`]: fetchedMeaning
-                            });
-                        }
-                    } catch (e) { /* 번역 실패시 무시 */ }
-                }
+                    setSelectedIndices([]); setLocalError('');
+                } catch (err) {} finally { setIsChecking(false); }
             };
 
             const currentBaseScore = selectedIndices.reduce((acc, idx) => acc + (LETTER_SCORES[letters[idx]] || 0), 0) + getLengthBonus(selectedIndices.length);
@@ -894,6 +908,7 @@
             );
         }
 
+        // --- 하위 컴포넌트: 결과 화면 ---
         function ResultView({ roomData, user }) {
             const { ranking, teamScores, wordDetails, totalWordsFound } = useMemo(() => {
                 const scores = {}; Object.keys(roomData.players || {}).forEach(uid => scores[uid] = 0);
@@ -982,6 +997,7 @@
             );
         }
 
+        // --- 하위 컴포넌트: 명예의 전당 ---
         function HallOfFameView({ onBack, db, appId }) {
             const [loading, setLoading] = useState(true);
             const [allData, setAllData] = useState({ leaderboard: [], teamBattles: [], classBattles: [] });
@@ -1085,7 +1101,6 @@
             );
         }
 
-        // React 앱 렌더링
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<WordAlchemistApp />);
     </script>
