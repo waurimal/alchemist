@@ -1412,7 +1412,8 @@
 
             const handleCheck = () => {
                 const trimmed = pwd.trim();
-                if (trimmed === storedPwd || trimmed === '0000' || trimmed === '1234') {
+                const waurimalPw = localStorage.getItem('waurimal_admin_pw');
+                if (trimmed === storedPwd || trimmed === '0000' || trimmed === '1234' || (waurimalPw && trimmed === waurimalPw)) {
                     onSuccess();
                 } else {
                     alert("비밀번호가 일치하지 않습니다. (기본: 0000 또는 1234)");
@@ -1521,6 +1522,7 @@
                 if (!newPwd.trim()) return alert("새 비밀번호를 입력해 주세요.");
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', SETTINGS_COLLECTION, 'teacher_config'), { password: newPwd.trim() }, { merge: true });
+                    localStorage.setItem('waurimal_admin_pw', newPwd.trim());
                     alert("교사 비밀번호가 성공적으로 변경되었습니다.");
                     setNewPwd('');
                 } catch (e) {
