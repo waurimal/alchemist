@@ -504,6 +504,13 @@
             const [bgmPlaying, setBgmPlaying] = useState(false);
             const [bgmVolume, setBgmVolume] = useState(0.2);
 
+            useEffect(() => {
+                if (isTeacherScreen && (!window.WaurimalAuth || !window.WaurimalAuth.isAuthenticated())) {
+                    setIsTeacherScreen(false);
+                    setShowPwdModal(true);
+                }
+            }, [isTeacherScreen]);
+
             // GNB 및 로컬 스토리지 연동 학생 프로필
             const [userInfo, setUserInfo] = useState(() => {
                 try {
@@ -790,7 +797,13 @@
                             setUserInfo={setUserInfo}
                             onCreateRoom={handleCreateRoom}
                             onJoinRoom={handleJoinRoom}
-                            onOpenTeacherModal={() => setShowPwdModal(true)}
+                            onOpenTeacherModal={() => {
+                                if (window.WaurimalAuth && window.WaurimalAuth.isAuthenticated()) {
+                                    setIsTeacherScreen(true);
+                                } else {
+                                    setShowPwdModal(true);
+                                }
+                            }}
                             db={db}
                             appId={appId}
                         />
@@ -1412,11 +1425,11 @@
 
             const handleCheck = () => {
                 const trimmed = pwd.trim();
-                const waurimalPw = localStorage.getItem('waurimal_admin_pw');
-                if (trimmed === storedPwd || trimmed === '0000' || trimmed === '1234' || (waurimalPw && trimmed === waurimalPw)) {
+                const authOk = window.WaurimalAuth ? window.WaurimalAuth.authenticate(trimmed) : (trimmed === storedPwd || trimmed === (localStorage.getItem('waurimal_admin_pw') || '1234'));
+                if (authOk) {
                     onSuccess();
                 } else {
-                    alert("비밀번호가 일치하지 않습니다. (기본: 0000 또는 1234)");
+                    alert("비밀번호가 일치하지 않습니다.");
                     setPwd('');
                 }
             };
@@ -1522,7 +1535,11 @@
                 if (!newPwd.trim()) return alert("새 비밀번호를 입력해 주세요.");
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', SETTINGS_COLLECTION, 'teacher_config'), { password: newPwd.trim() }, { merge: true });
-                    localStorage.setItem('waurimal_admin_pw', newPwd.trim());
+                    if (window.WaurimalAuth) {
+                        window.WaurimalAuth.setPw(newPwd.trim());
+                    } else {
+                        localStorage.setItem('waurimal_admin_pw', newPwd.trim());
+                    }
                     alert("교사 비밀번호가 성공적으로 변경되었습니다.");
                     setNewPwd('');
                 } catch (e) {
