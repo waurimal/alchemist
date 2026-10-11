@@ -1319,8 +1319,9 @@
                                     지금 1인 연습에 도전해 1위가 되어보세요!
                                 </div>
                             ) : (
-                                filteredPersonal.map((p, idx) => {
-                                    const rank = idx + 1;
+                                filteredPersonal.map((p, idx, arr) => {
+                                    // 동점자 동일 순위 및 차순위 건너뛰기 (1등 2명이면 1등, 1등, 3등)
+                                    const rank = arr.findIndex(x => Number(x.score || 0) <= Number(p.score || 0)) + 1;
                                     const rankBadge = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
                                     const bgStyle = rank === 1 ? 'bg-amber-50/80 border-amber-200' : rank === 2 ? 'bg-slate-100/90 border-slate-200' : rank === 3 ? 'bg-orange-50/80 border-orange-200' : 'bg-white border-slate-100';
 
