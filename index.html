@@ -1410,7 +1410,7 @@
         // ════════════════════════════════════════════════════════════════════
         function TeacherPasswordModal({ db, appId, onSuccess, onClose }) {
             const [pwd, setPwd] = useState('');
-            const [storedPwd, setStoredPwd] = useState('1234');
+            const [storedPwd, setStoredPwd] = useState('4657');
 
             useEffect(() => {
                 const fetchPwd = async () => {
@@ -1426,7 +1426,7 @@
 
             const handleCheck = () => {
                 const trimmed = pwd.trim();
-                const authOk = window.WaurimalAuth ? window.WaurimalAuth.authenticate(trimmed) : (trimmed === storedPwd || trimmed === (localStorage.getItem('waurimal_admin_pw') || '1234'));
+                const authOk = window.WaurimalAuth ? window.WaurimalAuth.authenticate(trimmed) : (trimmed === storedPwd || trimmed === (localStorage.getItem('waurimal_admin_pw') || '4657'));
                 if (authOk) {
                     onSuccess();
                 } else {
